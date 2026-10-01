@@ -10,6 +10,7 @@ A visual office for your Claude Code workers. One cubicle per project, one critt
   - Install it: https://code.claude.com/docs/en/setup
   - Log in once in Terminal: run `claude`, follow the login steps, then quit it.
   - **You need a paid plan** (Claude Pro or Max, or an Anthropic Console account with API billing). The office uses your normal Claude Code login and settings, so every critter's work counts against your plan's usage, the same as using Claude Code yourself.
+  - **Prefer an API key?** Anthropic's Agent SDK terms expect apps built on it to use API keys, so this is the fully supported option. Create a key at https://console.anthropic.com, then start the office with it: `ANTHROPIC_API_KEY=your-key npm start`. Critters then bill to your Console account instead of your plan.
 - **Optional:** `git` for the Changes tab and Save & Publish, the GitHub CLI (`gh`) for pull requests, and [Tailscale](https://tailscale.com) for the phone chat page.
 
 ## Install

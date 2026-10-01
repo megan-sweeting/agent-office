@@ -430,7 +430,7 @@
   .row.me:hover .undo-btn, .undo-btn:focus-visible { opacity: 1; }
   .undo-btn:hover { color: var(--accent-ink); text-decoration: underline; }
   @media (hover: none) { .undo-btn { opacity: .8; } }
-  .plan-body { max-height: 320px; overflow: auto; padding: 10px 14px; margin: 0 14px; border: 2px solid var(--line-soft); border-radius: 12px; background: var(--paper); font-size: 14px; line-height: 1.45; }
+  .plan-body { max-height: min(320px, 40vh); overflow: auto; padding: 10px 14px; margin: 0 14px; border: 2px solid var(--line-soft); border-radius: 12px; background: var(--paper); font-size: 14px; line-height: 1.45; }
   .plan-ask .ask-av span { background: var(--team); }
   .slash-menu { margin-bottom: 8px; border: 2px solid var(--line); border-radius: 14px; background: var(--card); max-height: 260px; overflow: auto; }
   .slash-menu button { display: flex; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 12px; font-size: 14px; align-items: baseline; }
@@ -788,7 +788,9 @@ function applyShot() {
   if (SHOT.get('view')) { view = SHOT.get('view'); render(); }
   const who = SHOT.get('open');
   const p = who && office.projects.find(x => !x.closed && (workerOf(x).name === who || x.name === who));
-  if (p && SHOT.has('ask')) perms.set('shot-demo', { reqId: 'shot-demo', projectId: p.id, toolName: 'Bash', canAlways: true,
+  if (p && SHOT.get('ask') === 'plan') perms.set('shot-demo', { reqId: 'shot-demo', projectId: p.id, toolName: 'ExitPlanMode',
+    plan: '## Plan\n\n1. Swap the hero photo for the new autumn shot\n2. Tighten the headline so it fits on one line on phones\n3. Check the page at phone and laptop widths\n\nNothing else on the site changes.' });
+  else if (p && SHOT.has('ask')) perms.set('shot-demo', { reqId: 'shot-demo', projectId: p.id, toolName: 'Bash', canAlways: true,
     input: { command: 'npm run build', description: 'Build the site so I can check the new hero on mobile' } });
   if (p) openDrawer(p.id, SHOT.get('tab') || 'chat');
   if (SHOT.has('hire')) openHire({ name: 'Holiday Mini Sessions' });

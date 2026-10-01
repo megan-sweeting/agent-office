@@ -1647,6 +1647,7 @@ const server = http.createServer(async (req, res) => {
           (err, out, errOut) => resolve({ ok: !err, out: String(out || '').trim(), err: String(errOut || err?.message || '').trim() })));
         const url = (r.out + '\n' + r.err).match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
         if (url) { execFile('open', [url]); return send(res, 200, { ok: true, url, existed: !r.ok }); }
+        if (/known GitHub host/i.test(r.err)) return send(res, 400, { error: `Saved and published ${info.branch}, but this project's copy online isn't on GitHub, so there's no pull request to open.` });
         return send(res, 400, { error: firstLine(r.err || r.out) });
       }
       if (b === 'deskmate' && m === 'POST') {
