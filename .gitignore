@@ -17,3 +17,6 @@ From the Boss/
 .claude/settings.local.json
 .claude/worktrees/
 .claude/.cc-writes/
+
+# Private handoff notes
+HANDOFF.md
