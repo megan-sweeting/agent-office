@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Office">
+<meta name="theme-color" content="#F8F1DC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#172012" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<title>Office Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F8F1DC; --card: #FFFCF2; --ink: #2A3825; --muted: #66705B; --line: #DDD0AE; --line-soft: #E9DFC4;
+    --moss: #587F3E; --moss-ink: #FFFCF2; --bubble: #EBF1DC; --code: #F1EAD6;
+    --accent: #BA5329; --accent-ink: #9A4222; --accent-bg: #FBE0D0; --accent-on: #FFFCF2;
+    --ok: #2F5E2B; --ok-bg: #E0F0CF; --warn: #9A4222; --warn-bg: #FBE0D0;
+    --bad: #7A2F5E; --bad-bg: #F6DAEA; --off: #545A4C; --off-bg: #E9E5D8;
+    --nap: #7A5600; --nap-bg: #FDEFC6; --sleep: #4B4880; --sleep-bg: #E6E4F4;
+    --trip: #22606A; --trip-bg: #DCEFF1; --team: #34508C; --team-bg: #E3E9F7;
+    --display: 'Fraunces', Georgia, serif; --body: 'Nunito', ui-rounded, system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #172012; --card: #26321F; --ink: #F2ECD8; --muted: #B0BAA0; --line: #48583C; --line-soft: #3C4A32;
+      --moss: #9CC57B; --moss-ink: #162010; --bubble: #3B4B30; --code: #1E2619;
+      --accent: #F29B72; --accent-ink: #F7B593; --accent-bg: #4A2B1C; --accent-on: #1B130E;
+      --ok: #B2E69F; --ok-bg: #27401F; --warn: #F7B593; --warn-bg: #4A2B1C;
+      --bad: #EDB3DC; --bad-bg: #432440; --off: #C0C6B1; --off-bg: #333A2D;
+      --nap: #F7D37E; --nap-bg: #463716; --sleep: #C6C3EE; --sleep-bg: #2F2E47;
+      --trip: #9ED8DE; --trip-bg: #1D3739; --team: #B4C6F0; --team-bg: #25304A;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.45 var(--body); -webkit-text-size-adjust: 100%; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: inherit; }
+  [hidden] { display: none !important; }
+  .app { height: 100dvh; display: flex; flex-direction: column; }
+  header.bar {
+    display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 14px 10px;
+    background: var(--card); border-bottom: 2px dashed var(--line); flex: none;
+  }
+  header.bar h1 { margin: 0; font: 700 20px var(--display); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header.bar img { width: 40px; height: 40px; }
+  header.bar small { display: block; font: 600 13px var(--body); color: var(--muted); }
+  .back { border: 0; background: transparent; font-size: 26px; line-height: 1; padding: 4px 8px 4px 0; color: var(--moss); }
+  .conn { font-size: 12px; font-weight: 800; color: var(--accent-ink); }
+  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Chat list */
+  .list { list-style: none; margin: 0; padding: 6px 0; }
+  .list li button { width: 100%; display: flex; gap: 12px; align-items: center; padding: 12px 16px; border: 0; background: transparent; text-align: left; }
+  .list li + li button { border-top: 1px solid var(--line-soft); }
+  .list img { width: 54px; height: 54px; flex: none; }
+  .list .who { flex: 1; min-width: 0; }
+  .list .who b { display: block; font: 700 18px var(--display); }
+  .list .who span { display: block; color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list .who .proj { color: var(--ink); font-weight: 700; font-size: 13px; }
+  .side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+  .pill { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; background: var(--c-bg); color: var(--c); white-space: nowrap; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+  .ask-count { background: var(--accent); color: var(--accent-on); border-radius: 999px; font-size: 12px; font-weight: 800; padding: 1px 8px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+
+  /* Thread */
+  .thread { display: flex; flex-direction: column; gap: 12px; padding: 14px 12px 18px; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row.me { justify-content: flex-end; }
+  .row .av { width: 34px; height: 34px; flex: none; }
+  .stack { display: flex; flex-direction: column; gap: 4px; max-width: 84%; min-width: 0; align-items: flex-start; }
+  .row.me .stack { align-items: flex-end; }
+  .bubble { padding: 9px 14px; border-radius: 20px; overflow-wrap: anywhere; max-width: 100%; }
+  .row.them .bubble { background: var(--bubble); border-bottom-left-radius: 6px; }
+  .row.me .bubble { background: var(--moss); color: var(--moss-ink); border-bottom-right-radius: 6px; }
+  .md { white-space: pre-wrap; }
+  .md code { background: var(--code); padding: 1px 5px; border-radius: 5px; font-size: 14px; }
+  .row.me .md code { background: rgba(255,255,255,.2); }
+  pre.code { background: var(--card); border-radius: 10px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .who-sub { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 10px; }
+  .sys { align-self: center; font-size: 13px; color: var(--muted); text-align: center; }
+  .sys.err { color: var(--bad); font-weight: 700; }
+  .dots { display: inline-flex; gap: 4px; padding: 4px 2px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--moss); animation: blink 1.2s infinite; }
+  .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  /* May I? */
+  .ask { background: var(--card); border: 2px solid var(--accent); border-radius: 22px; overflow: hidden; margin-left: 42px; }
+  .ask-head { background: var(--accent-bg); padding: 12px 14px; }
+  .ask-head small { display: block; color: var(--accent-ink); font-weight: 700; font-size: 13px; }
+  .ask-head b { font: 700 19px var(--display); }
+  .ask-body { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .ask-body details summary { font-weight: 800; font-size: 14px; color: var(--moss); }
+  .ask-body input { border: 0; border-bottom: 2px dashed var(--line); background: transparent; padding: 8px 2px; font-size: 15px; }
+  .ask-body input:focus { outline: none; border-bottom-color: var(--accent); }
+  .ask-actions { display: flex; gap: 8px; align-items: center; }
+  .ask-actions .sp { flex: 1; }
+  .ask-actions button { min-height: 44px; border-radius: 999px; font-weight: 800; padding: 0 16px; }
+  .no { border: 0; background: transparent; color: var(--muted); }
+  .always { border: 2px solid var(--moss); background: transparent; color: var(--moss); }
+  .yes { border: 0; background: var(--moss); color: var(--moss-ink); padding: 0 20px !important; }
+  .ask button:disabled { opacity: .5; }
+
+  /* Composer */
+  footer.composer {
+    flex: none; display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
+    background: var(--card); border-top: 2px dashed var(--line);
+  }
+  footer.composer textarea {
+    flex: 1; min-height: 44px; max-height: 160px; resize: none; border: 2px solid var(--line); border-radius: 22px;
+    padding: 10px 14px; background: var(--paper); font-size: 16px;
+  }
+  footer.composer textarea:focus { outline: none; border-color: var(--moss); }
+  footer.composer button { min-height: 44px; border-radius: 999px; font-weight: 800; padding: 0 18px; border: 0; background: var(--moss); color: var(--moss-ink); }
+  footer.composer .stop { background: transparent; border: 2px solid var(--line); color: var(--ink); }
+  footer.composer .photo-btn { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--line); color: var(--ink); cursor: pointer; }
+  .photo-tray { flex: none; display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px 0; background: var(--card); border-top: 2px dashed var(--line); }
+  .photo-tray[hidden] { display: none; }
+  .photo-tray + footer.composer { border-top: 0; }
+  .photo-tray figure { position: relative; margin: 0 6px 0 0; flex: none; }
+  .photo-tray img, .photo-tray .busy-photo { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); display: block; }
+  .photo-tray .busy-photo { display: grid; place-items: center; font-size: 11px; color: var(--muted); border-style: dashed; }
+  .photo-tray .rm { position: absolute; top: -6px; right: -6px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card); background: var(--ink); color: var(--card); font-size: 12px; padding: 0; }
+  .photos { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .plan-body { max-height: 50vh; overflow: auto; border: 2px solid var(--line-soft); border-radius: 12px; padding: 8px 12px; background: var(--paper); font-size: 15px; }
+  .file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 2px solid var(--line); border-radius: 14px; background: var(--paper); font-size: 13px; font-weight: 700; max-width: 220px; }
+  .file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .photo-tray .file-chip { height: 64px; padding-right: 26px; position: relative; flex: none; }
+  .photos img { max-width: 200px; max-height: 200px; border-radius: 16px; border: 2px solid var(--line-soft); display: block; object-fit: cover; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  #toast { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 84px); background: var(--ink); color: var(--paper);
+    padding: 10px 14px; border-radius: 14px; font-weight: 700; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar" id="bar"></header>
+  <main id="main"></main>
+  <div class="photo-tray" id="photoTray" hidden></div>
+  <footer class="composer" id="composer" hidden>
+    <label class="photo-btn" aria-label="Add photos or files">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"></rect><circle cx="9" cy="11" r="2"></circle><path d="m21 17-5-5-8 8"></path></svg>
+      <input type="file" id="photoIn" multiple hidden></label>
+    <textarea id="msg" rows="1" aria-label="Message"></textarea>
+    <button class="stop" id="stop" hidden>Stop</button>
+    <button id="send">Send</button>
+  </footer>
+</div>
+<div id="toast" role="status"></div>
+<script>
+const TOKEN = '__OFFICE_TOKEN__';
+const STATUS = {
+  working: ['Working', 'ok'], needs: ['Needs You', 'warn'], blocked: ['Stuck', 'bad'], break: ['Snack Break', 'nap'],
+  out: ['Napping', 'sleep'], home: ['Gone Home', 'off'], away: ['On a Field Trip', 'trip'], crew: ['Leading a Team', 'team'],
+};
+let office = { projects: [], workers: [] }, busy = new Set(), perms = new Map();
+let openId = null, chat = null, connected = false, es = null, lastHeard = 0;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const find = id => office.projects.find(p => p.id === id);
+const workerOf = p => office.workers.find(w => w.id === p?.workerId) || { name: 'Worker', critter: null, animal: '' };
+const img = (w, cls = '') => w.critter ? `<img class="${cls}" src="/assets/critters/${esc(w.critter)}.png" alt="">` : '';
+const asks = id => [...perms.values()].filter(r => r.projectId === id);
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 3500); }
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Office-Token': TOKEN }, body: body && JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { toast(d.error || 'Something went wrong.'); throw new Error(d.error); }
+  return d;
+}
+function md(s) {
+  return String(s).split('```').map((part, i) => {
+    if (i % 2) { const nl = part.indexOf('\n'); return `<pre class="code">${esc((nl >= 0 && /^[\w+#.-]*$/.test(part.slice(0, nl).trim()) ? part.slice(nl + 1) : part).replace(/\n$/, ''))}</pre>`; }
+    const h = esc(part.replace(/^\n+|\n+$/g, '')).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>').replace(/^#{1,6} (.+)$/gm, '<b>$1</b>');
+    return h ? `<div class="md">${h}</div>` : '';
+  }).join('');
+}
+
+/* ---------- Chat list ---------- */
+function renderList() {
+  $('#bar').innerHTML = `<h1>Office Chat</h1><span class="conn">${connected ? '' : 'Reconnecting…'}</span>`;
+  $('#composer').hidden = true; $('#photoTray').hidden = true;
+  const ps = office.projects.filter(p => !p.closed).sort((a, b) =>
+    (asks(b.id).length - asks(a.id).length) || ((b.unread ? 1 : 0) - (a.unread ? 1 : 0)) || (b.updatedAt - a.updatedAt));
+  $('#main').innerHTML = ps.length ? `<ul class="list">${ps.map(p => {
+    const w = workerOf(p), [label, c] = busy.has(p.id) ? ['Working', 'ok'] : (STATUS[p.status] || STATUS.out), n = asks(p.id).length;
+    return `<li><button data-open="${p.id}">${img(w)}
+      <span class="who"><b>${esc(w.name)}</b><span class="proj">${esc(p.name)}${p.deskOf ? ' · desk mate' : ''}</span>${p.task ? `<span>${esc(p.task)}</span>` : ''}</span>
+      <span class="side">${n ? `<span class="ask-count">May I? ${n}</span>` : p.unread ? '<span class="dot" aria-label="New reply"></span>' : ''}
+        <span class="pill" style="--c:var(--${c});--c-bg:var(--${c}-bg)">${label}</span></span></button></li>`;
+  }).join('')}</ul>` : '<p class="empty">No one is at work yet.</p>';
+}
+
+/* ---------- Thread ---------- */
+const FILE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>';
+const filesHTML = names => names?.length ? `<div class="photos">${names.map(n => `<span class="file-chip">${FILE_ICON}<span>${esc(n)}</span></span>`).join('')}</div>` : '';
+const photosHTML = imgs => imgs?.length ? `<div class="photos">${imgs.map(src => `<img src="${src}" alt="Photo you sent">`).join('')}</div>` : '';
+const QUIET = /^(mcp__office__|TodoWrite$)/;
+function threadHTML(items, p, working) {
+  const w = workerOf(p), turns = [];
+  let cur = { user: null, items: [] };
+  for (const x of items) { if (x.kind === 'user') { if (cur.user || cur.items.length) turns.push(cur); cur = { user: x, items: [] }; } else cur.items.push(x); }
+  if (cur.user || cur.items.length) turns.push(cur);
+  return turns.map((t, i) => {
+    let out = t.user ? `<div class="row me"><div class="stack">${photosHTML(t.user.images)}${filesHTML(t.user.files)}${t.user.text ? `<div class="bubble">${md(t.user.text)}</div>` : ''}</div></div>` : '';
+    if (working && i === turns.length - 1) return out;
+    let last = -1; t.items.forEach((x, j) => { if (x.kind === 'tool' && !QUIET.test(x.name)) last = j; });
+    let replies = t.items.filter((x, j) => x.kind === 'assistant' && j > last);
+    if (!replies.length) { const all = t.items.filter(x => x.kind === 'assistant'); if (all.length) replies = [all.at(-1)]; }
+    if (replies.length) out += `<div class="row them">${img(w, 'av')}<div class="stack">${replies.map(x => `<div class="bubble">${md(x.text)}</div>`).join('')}</div></div>`;
+    for (const x of t.items) {
+      if (x.kind === 'system') out += `<div class="sys">${esc(x.text)}</div>`;
+      if (x.kind === 'done' && x.error) out += `<div class="sys err">Stopped: ${esc(x.error)}</div>`;
+    }
+    return out;
+  }).join('');
+}
+function askHTML(r, p) {
+  const w = workerOf(p), i = r.input || {};
+  if (r.toolName === 'ExitPlanMode') return `<div class="ask" data-req="${r.reqId}">
+    <div class="ask-head"><small>${esc(w.name)} has a plan</small><b>May I build this plan?</b></div>
+    <div class="ask-body"><div class="plan-body">${md(r.plan || '(No plan text.)')}</div>
+      <input data-why="${r.reqId}" placeholder="Want changes? Tell ${esc(w.name)} here" aria-label="Changes to the plan">
+      <div class="ask-actions"><button class="no" data-perm="deny" data-req="${r.reqId}">Keep Planning</button><span class="sp"></span>
+        <button class="yes" data-perm="allow" data-req="${r.reqId}">Approve and Build</button></div></div></div>`;
+  const file = (i.file_path || '').split('/').pop();
+  const q = { Bash: 'May I run a command?', Edit: `May I edit ${file}?`, MultiEdit: `May I edit ${file}?`, Write: `May I create ${file}?`,
+    WebFetch: 'May I open a web page?', WebSearch: 'May I search the web?' }[r.toolName]
+    || (r.title ? r.title.replace(/^Claude (wants|would like) to /i, 'May I ').replace(/[.?]?$/, '?') : `May I use ${r.toolName}?`);
+  const why = i.description || r.description || i.url || i.query || '';
+  const detail = i.command || i.file_path || JSON.stringify(i, null, 2).slice(0, 1500);
+  return `<div class="ask" data-req="${r.reqId}">
+    <div class="ask-head"><small>${esc(w.name)} asks</small><b>${esc(q)}</b></div>
+    <div class="ask-body">${why ? `<div>${esc(why)}</div>` : ''}
+      <details><summary>See the details</summary><pre class="code">${esc(detail)}</pre></details>
+      <input data-why="${r.reqId}" placeholder="Or tell ${esc(w.name)} what to do instead" aria-label="Instead">
+      <div class="ask-actions"><button class="no" data-perm="deny" data-req="${r.reqId}">Not Now</button><span class="sp"></span>
+        ${r.canAlways ? `<button class="always" data-perm="always" data-req="${r.reqId}">Always</button>` : ''}
+        <button class="yes" data-perm="allow" data-req="${r.reqId}">Allow</button></div></div></div>`;
+}
+function renderThread(toBottom) {
+  const p = find(openId);
+  if (!p) { openId = null; return renderList(); }
+  const w = workerOf(p), [label] = busy.has(p.id) ? ['Working…'] : (STATUS[p.status] || STATUS.out);
+  $('#bar').innerHTML = `<button class="back" data-back aria-label="All chats">‹</button>${img(w)}<h1>${esc(w.name)}<small>${esc(p.name)} · ${label}</small></h1><span class="conn">${connected ? '' : 'Reconnecting…'}</span>`;
+  $('#composer').hidden = false; renderTray();
+  $('#msg').placeholder = `Message ${w.name}…`;
+  $('#stop').hidden = !busy.has(p.id);
+  const box = $('#main'), near = toBottom || box.scrollHeight - box.scrollTop - box.clientHeight < 140;
+  let html = !chat || chat.loading ? '<p class="sys">Loading…</p>'
+    : chat.items.length ? threadHTML(chat.items, p, busy.has(p.id)) : `<p class="sys">Say hello to ${esc(w.name)}.</p>`;
+  const mine = asks(p.id);
+  html += mine.map(r => askHTML(r, p)).join('');
+  if (!mine.length && (busy.has(p.id) || p.helpers?.length)) html += `<div class="row them">${img(w, 'av')}<div class="stack">
+    <div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>
+    <div class="who-sub">${esc(w.name)} is ${p.helpers?.length ? `leading a team of ${p.helpers.length}` : 'working'}…</div></div></div>`;
+  const typing = document.activeElement?.dataset?.why;
+  if (typing) return;
+  box.innerHTML = `<div class="thread">${html}</div>`;
+  if (near) box.scrollTop = box.scrollHeight;
+}
+async function openChat(id) {
+  openId = id; chat = { id, items: [], loading: true, buffer: [] };
+  history.pushState({ id }, '', '#' + id);
+  renderThread(true);
+  const p = find(id);
+  if (p.unread) api('POST', `/api/projects/${id}/read`).catch(() => {});
+  if (p.sessionId) {
+    try {
+      const { items } = await api('GET', `/api/chat?session=${encodeURIComponent(p.sessionId)}&dir=${encodeURIComponent(p.folder)}`);
+      if (chat?.id !== id) return;
+      const key = x => x.kind + ':' + (x.id || x.toolUseId || (x.text || '').slice(0, 200));
+      const seen = new Set(items.map(key));
+      chat.items = items.concat(chat.buffer.filter(x => !seen.has(key(x))));
+    } catch (e) {}
+  }
+  if (chat?.id === id) { chat.loading = false; renderThread(true); }
+}
+function closeChat() { openId = null; chat = null; renderList(); }
+window.addEventListener('popstate', () => { if (openId) closeChat(); });
+
+/* ---------- Live link ---------- */
+function connect() {
+  try { es?.close(); } catch (e) {}
+  es = new EventSource(`/api/events?token=${TOKEN}`);
+  es.onopen = () => { connected = true; lastHeard = Date.now(); rerender(); };
+  es.onerror = () => { connected = false; rerender(); if (es.readyState === 2) setTimeout(connect, 2000); };
+  es.onmessage = e => {
+    lastHeard = Date.now();
+    const ev = JSON.parse(e.data);
+    if (ev.type === 'hello') { office = ev.office; busy = new Set(ev.busy); perms = new Map(ev.permissions.map(r => [r.reqId, r])); if (openId && find(openId)) openChat(openId); else rerender(); }
+    else if (ev.type === 'project') {
+      const i = office.projects.findIndex(p => p.id === ev.project.id);
+      const prev = i >= 0 ? office.projects[i].sessionId : null;
+      if (i >= 0) office.projects[i] = ev.project; else office.projects.push(ev.project);
+      if (openId === ev.project.id && prev && ev.project.sessionId !== prev) return openChat(openId);
+      if (openId === ev.project.id && ev.project.unread) api('POST', `/api/projects/${openId}/read`).catch(() => {});
+      rerender();
+    }
+    else if (ev.type === 'worker') { const i = office.workers.findIndex(w => w.id === ev.worker.id); if (i >= 0) office.workers[i] = ev.worker; rerender(); }
+    else if (ev.type === 'deleted') { office.projects = office.projects.filter(p => p.id !== ev.id); if (openId === ev.id) closeChat(); else rerender(); }
+    else if (ev.type === 'chat') { if (chat?.id === ev.id) { (chat.loading ? chat.buffer : chat.items).push(...ev.items); rerender(); } }
+    else if (ev.type === 'busy') { ev.busy ? busy.add(ev.id) : busy.delete(ev.id); rerender(); }
+    else if (ev.type === 'permission') { perms.set(ev.req.reqId, ev.req); rerender(); }
+    else if (ev.type === 'permission-done') { perms.delete(ev.reqId); rerender(); }
+    else if (ev.type === 'toast') toast(ev.text);
+  };
+}
+function rerender() { openId ? renderThread() : renderList(); }
+setInterval(() => { if (!connected || es?.readyState === 2 || (lastHeard && Date.now() - lastHeard > 50000)) connect(); }, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && (!connected || Date.now() - lastHeard > 50000)) connect(); });
+
+/* ---------- Actions ---------- */
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  if (t.dataset.open) return openChat(t.dataset.open);
+  if (t.hasAttribute('data-back')) { history.back(); return closeChat(); }
+  if (t.dataset.perm) {
+    const why = document.querySelector(`[data-why="${t.dataset.req}"]`)?.value.trim();
+    t.closest('.ask').querySelectorAll('button').forEach(b => { b.disabled = true; });
+    return api('POST', `/api/permissions/${t.dataset.req}`, { decision: t.dataset.perm, message: why || undefined }).catch(() => {});
+  }
+  if (t.id === 'send') return send();
+  if (t.id === 'stop' && openId) return api('POST', `/api/projects/${openId}/stop`).catch(() => {});
+});
+async function send() {
+  const box = $('#msg'), text = box.value.trim(), p = find(openId);
+  const drafts = p ? drafts_(p.id) : [];
+  if (drafts.some(x => x.loading)) return toast('Still adding your photos. One moment.');
+  if ((!text && !drafts.length) || !p) return;
+  if (p.inDesktop && !p.desktopDone && !confirm(`${workerOf(p).name}'s chat is open in the Claude desktop app. Send from here instead?`)) return;
+  box.value = ''; grow();
+  photoDrafts[p.id] = []; renderTray();
+  const photos = drafts.map(({ kind, name, type, data, view, viewType, full, fullType }) => ({ kind, name, type, data, view, viewType, full, fullType }));
+  try { await api('POST', `/api/projects/${p.id}/message`, { text, photos }); }
+  catch (e) { box.value = text; photoDrafts[p.id] = drafts; renderTray(); }
+}
+
+/* ---------- Photos ---------- */
+// A smaller copy goes to the critter to look at; the original is saved in the project's "From <name>" folder.
+const photoDrafts = {};
+const drafts_ = id => photoDrafts[id] ||= [];
+function renderTray() {
+  const t = $('#photoTray'), list = openId ? drafts_(openId) : [];
+  t.hidden = !list.length;
+  t.innerHTML = list.map((ph, i) => ph.loading ? '<div class="busy-photo">Adding…</div>' : ph.kind === 'file' ?
+    `<figure class="file-chip">${FILE_ICON}<span>${esc(ph.name)}</span><button class="rm" data-rm="${i}" aria-label="Remove file">✕</button></figure>` :
+    `<figure><img src="${ph.preview}" alt="${esc(ph.name)}"><button class="rm" data-rm="${i}" aria-label="Remove photo">✕</button></figure>`).join('');
+}
+const readB64 = blob => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(blob); });
+const loadImg = file => new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(file); });
+async function preparePhoto(file) {
+  const img = await loadImg(file);
+  const big = Math.max(img.naturalWidth, img.naturalHeight);
+  const easy = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type);
+  const asIs = easy && big <= 2000 && file.size <= 3.5e6;
+  let view, viewType;
+  if (asIs) { view = await readB64(file); viewType = file.type; }
+  else {
+    const k = Math.min(1, 1600 / big), c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    view = await readB64(await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86))); viewType = 'image/jpeg';
+  }
+  const full = !asIs && file.size <= 30e6 && (easy || file.type === 'image/heic') ? await readB64(file) : null;
+  return { name: file.name || 'photo', view, viewType, preview: img.src, full, fullType: full ? file.type : viewType };
+}
+$('#photoIn').addEventListener('change', async e => {
+  const id = openId, files = [...e.target.files];
+  e.target.value = '';
+  if (!id) return;
+  const list = drafts_(id), room = 10 - list.length;
+  if (room <= 0) return toast('Up to 10 photos per message.');
+  for (const f of files.slice(0, room)) {
+    const slot = { loading: true };
+    list.push(slot); renderTray();
+    try {
+      if (!f.type.startsWith('image/') && f.size > 30e6) throw new Error('big');
+      const asFile = async () => ({ kind: 'file', name: f.name || 'file', type: f.type, data: await readB64(f) });
+      Object.assign(slot, f.type.startsWith('image/') ? await preparePhoto(f).catch(asFile) : await asFile(), { loading: false });
+    }
+    catch (err) { list.splice(list.indexOf(slot), 1); toast(err.message === 'big' ? `${f.name} is over 30 MB.` : "Couldn't open that file. Try another one."); }
+    renderTray();
+  }
+});
+$('#photoTray').addEventListener('click', e => {
+  const b = e.target.closest('[data-rm]');
+  if (b && openId) { drafts_(openId).splice(+b.dataset.rm, 1); renderTray(); }
+});
+function grow() { const t = $('#msg'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; }
+$('#msg').addEventListener('input', grow);
+
+if (TOKEN.startsWith('__')) $('#main').innerHTML = '<p class="empty">Open this from the office.</p>';
+else connect();
+</script>
+</body>
+</html>

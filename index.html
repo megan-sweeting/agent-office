@@ -1,0 +1,2767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Office</title>
+<script>
+  // Pick light or dark before the page paints, from the last-used setting.
+  (function () {
+    var t = 'system';
+    try { t = localStorage.getItem('agentOffice.theme') || 'system'; } catch (e) {}
+    if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F8F1DC;
+    --card: #FFFCF2;
+    --wall: #A6C07F;
+    --moss: #587F3E;
+    --moss-ink: #FFFCF2;
+    --ink: #2A3825;
+    --muted: #66705B;
+    --line: #DDD0AE;
+    --line-soft: #E9DFC4;
+    --desk: #DDEBC4;
+    --desk-edge: #BBD199;
+    --link: #4E6B3A;
+    /* Fox terracotta: the one warm accent, for anything that needs the boss's attention. */
+    --accent: #BA5329; --accent-ink: #9A4222; --accent-bg: #FBE0D0; --accent-on: #FFFCF2;
+    --ok-bg: #E0F0CF;   --ok: #2F5E2B;
+    --warn-bg: var(--accent-bg); --warn: var(--accent-ink); --warn-line: var(--accent);
+    /* Two supporting colours: berry (stuck, ideas) and mustard (to-dos, snack break, current stage). */
+    --berry: #963A74;   --berry-ink: #7A2F5E;   --berry-bg: #F6DAEA;   --berry-on: #FFFCF2;
+    --mustard: #E3A92E; --mustard-ink: #7A5600; --mustard-bg: #FDEFC6; --mustard-on: #33260A;
+    --bad-bg: var(--berry-bg); --bad: var(--berry-ink); --bad-line: var(--berry);
+    --del-bg: #F7DAD3;  --del: #8E3226;
+    --off-bg: #E9E5D8;  --off: #545A4C;
+    --sleep-bg: #E6E4F4; --sleep: #4B4880;
+    --trip-bg: #DCEFF1; --trip: #22606A;
+    --team-bg: #E3E9F7; --team: #34508C;
+    --nap-bg: var(--mustard-bg); --nap: var(--mustard-ink);
+    --code: #F1EAD6;
+    --bubble: #EBF1DC;
+    --plate-moss: #587F3E; --plate-moss-on: #FFFCF2;
+    --plate-berry: #963A74; --plate-berry-on: #FFFCF2;
+    --plate-mustard: #E3A92E; --plate-mustard-on: #33260A;
+    --plate-trip: #2E7A83; --plate-trip-on: #FFFCF2;
+    --plate-team: #4A64A8; --plate-team-on: #FFFCF2;
+    --plate-sleep: #6F66B0; --plate-sleep-on: #FFFCF2;
+    --plate-rose: #B5566F; --plate-rose-on: #FFFCF2;
+    --plate-sage: #A6C07F; --plate-sage-on: #22301C;
+    --shadow: 0 10px 26px rgba(90, 70, 30, .14);
+    --display: 'Fraunces', Georgia, serif;
+    --body: 'Nunito', ui-rounded, system-ui, sans-serif;
+  }
+  :root { color-scheme: light; }
+  /* Dark tokens. The page sets data-theme from Settings (Match my Mac / Light / Dark). */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+      --paper: #172012;
+      --card: #33422A;
+      --wall: #5E7C45;
+      --moss: #9CC57B;
+      --moss-ink: #162010;
+      --ink: #F2ECD8;
+      --muted: #B0BAA0;
+      --line: #48583C;
+      --line-soft: #3C4A32;
+      --desk: #445839;
+      --desk-edge: #35452C;
+      --link: #B4D899;
+      --accent: #F29B72; --accent-ink: #F7B593; --accent-bg: #4A2B1C; --accent-on: #1B130E;
+      --ok-bg: #27401F;   --ok: #B2E69F;
+      --berry: #E298C8;   --berry-ink: #EDB3DC;   --berry-bg: #432440;   --berry-on: #1E1219;
+      --mustard: #F2C35A; --mustard-ink: #F7D37E; --mustard-bg: #463716; --mustard-on: #231A06;
+      --del-bg: #43231E;  --del: #F2A497;
+      --off-bg: #333A2D;  --off: #C0C6B1;
+      --sleep-bg: #2F2E47; --sleep: #C6C3EE;
+      --trip-bg: #1D3739; --trip: #9ED8DE;
+      --team-bg: #25304A; --team: #B4C6F0;
+      --code: #212A1C;
+      --shadow: 0 10px 26px rgba(0, 0, 0, .35);
+      --bubble: #3B4B30;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--body); min-height: 100vh; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: var(--link); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  h1, h2, h3, .display { font-family: var(--display); }
+
+  .btn {
+    border: 2px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px;
+    padding: 7px 16px; font-weight: 800; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap; text-decoration: none;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.primary { background: var(--moss); border-color: var(--moss); color: var(--moss-ink); }
+  .btn.warn { border-color: var(--bad-line); color: var(--bad); }
+  .btn.accent { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+  .btn.accent:hover { filter: brightness(1.06); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .btn.small { padding: 4px 12px; font-size: 13px; }
+  .btn.on { background: var(--moss); border-color: var(--moss); color: var(--moss-ink); }
+  .icon { width: 18px; height: 18px; flex: none; }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    padding: 18px 32px; border-bottom: 2px dashed var(--line); background: var(--paper);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand h1 { margin: 0; font-size: 24px; line-height: 1.1; }
+  .brand p { margin: 0; color: var(--muted); font-size: 14px; }
+  .topbar nav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .conn { font-size: 13px; color: var(--warn); font-weight: 700; }
+
+  main { max-width: 1320px; margin: 0 auto; padding: 26px 32px 120px; }
+  .banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; margin-bottom: 18px; border: 2px solid var(--warn-line); border-radius: 18px; background: var(--warn-bg); color: var(--warn); }
+  .banner p { margin: 0; flex: 1; min-width: 200px; font-weight: 700; }
+
+  /* Boss's burrow tile */
+  .burrow {
+    display: flex; align-items: center; gap: 18px; padding: 18px 24px; margin-bottom: 20px; text-decoration: none; color: var(--ink);
+    background: var(--card); border: 3px solid var(--mustard); border-radius: 22px; cursor: pointer;
+  }
+  .burrow:hover { border-color: var(--accent); }
+  .burrow h2 { margin: 0; font-size: 22px; }
+  .burrow p { margin: 2px 0 0; color: var(--muted); }
+  .burrow { padding: 12px 24px 12px 18px; }
+  .burrow-door { display: grid; place-items: end center; width: 84px; height: 80px; background: var(--berry-bg); border-radius: 18px; padding-bottom: 4px; }
+  .burrow-door svg { transform-origin: 50% 100%; }
+  .burrow-text { flex: 1; min-width: 0; }
+  .knock { margin-left: auto; font-family: var(--display); font-weight: 700; font-size: 19px; color: var(--accent-ink); white-space: nowrap;
+    background: var(--accent-bg); border: 2px solid var(--accent); border-radius: 999px; padding: 8px 18px; display: inline-flex; gap: 6px; }
+  .knock span { display: inline-block; }
+  .knock .k1 { animation: knock 5s ease-in-out infinite; }
+  .knock .k2 { animation: knock 5s ease-in-out .35s infinite; }
+  .knock .arrow { transition: transform .2s ease; }
+  .burrow:hover .knock .arrow { transform: translateX(4px); }
+  .burrow:hover .burrow-door svg { animation: door-rattle .5s ease-in-out 2; }
+  .burrow:hover .knock .k1, .burrow:hover .knock .k2 { animation-duration: 1.2s; }
+  @keyframes knock { 0%, 12%, 100% { transform: none; } 4% { transform: translateY(-5px) rotate(-6deg); } 8% { transform: translateY(0) rotate(3deg); } }
+  @keyframes door-rattle { 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
+  @media (prefers-reduced-motion: reduce) { .knock span, .burrow-door svg { animation: none !important; } }
+
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .chip { padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 14px; background: var(--c-bg); color: var(--c); }
+
+  /* Cubicles */
+  .floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 22px; }
+  .cube {
+    background: var(--card); border-radius: 26px 26px 18px 18px; border: 3px solid var(--wall); overflow: hidden;
+    display: flex; flex-direction: column; cursor: pointer; transition: transform .12s ease; position: relative;
+  }
+  .cube:hover { transform: translateY(-2px); }
+  .cube.asking, .cube.s-needs { border-color: var(--warn-line); box-shadow: 0 0 0 5px var(--warn-bg); }
+  .cube .wall { background: var(--wall); height: 18px; display: flex; justify-content: center; }
+  .plate {
+    background: var(--plate, var(--moss)); color: var(--plate-on, var(--moss-ink)); font-weight: 800; font-size: 14px; padding: 3px 16px; border-radius: 0 0 12px 12px;
+    height: 24px; max-width: 86%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cube.asking .plate, .cube.s-needs .plate { background: var(--accent); color: var(--accent-on); }
+  .unread-dot { position: absolute; top: 26px; left: 14px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 3px solid var(--card); }
+  .scene { position: relative; height: 158px; margin-top: 10px; }
+  .scene .critter { position: absolute; left: 50%; bottom: 0; width: 150px; height: 150px; margin-left: -75px; transition: transform .3s ease; }
+  .busy .scene .critter { animation: bounce 1.6s ease-in-out infinite; }
+  @keyframes bounce { 50% { transform: translateY(-4px); } }
+  .s-out .scene .critter { opacity: .75; }
+  .s-home .scene .critter { opacity: .4; filter: saturate(.6); }
+  .desk { margin: 0 16px; height: 44px; background: var(--desk); border-bottom: 7px solid var(--desk-edge); border-radius: 12px; display: grid; place-items: center; }
+  .desk-name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
+  .say {
+    position: absolute; right: 12px; top: 4px; background: var(--card); border: 2px solid var(--wall); border-radius: 16px;
+    padding: 4px 12px; font-size: 13px; font-weight: 800; white-space: nowrap; --say-bg: var(--card); --say-line: var(--wall);
+  }
+  .say::first-letter { text-transform: uppercase; }
+  /* speech bubble tail pointing down-left toward the critter */
+  .say::before, .say::after { content: ''; position: absolute; left: 14px; width: 0; height: 0; border-style: solid; }
+  .say::before { bottom: -11px; border-width: 11px 10px 0 0; border-color: var(--say-line) transparent transparent transparent; }
+  .say::after { bottom: -7px; left: 16px; border-width: 8px 7px 0 0; border-color: var(--say-bg) transparent transparent transparent; }
+  /* thought bubble: little trailing circles instead of a tail */
+  .say.thought { border-radius: 999px; }
+  .say.thought::before, .say.thought::after { border: 2px solid var(--say-line); background: var(--say-bg); border-radius: 50%; }
+  .say.thought::before { width: 10px; height: 10px; bottom: -13px; left: 10px; }
+  .say.thought::after { width: 6px; height: 6px; bottom: -21px; left: 2px; }
+  .say.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); --say-bg: var(--warn-bg); --say-line: var(--warn-line); animation: bob 1.3s ease-in-out infinite; }
+  .say.bad { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); --say-bg: var(--bad-bg); --say-line: var(--bad-line); }
+  .say.off { border-color: var(--line); color: var(--off); --say-line: var(--line); }
+  .say.team { background: var(--team-bg); border-color: var(--team); color: var(--team); --say-bg: var(--team-bg); --say-line: var(--team); }
+  .say.trip { background: var(--trip-bg); border-color: var(--trip); color: var(--trip); --say-bg: var(--trip-bg); --say-line: var(--trip); }
+  .s-away .scene .critter { opacity: .3; filter: saturate(.5); }
+  @keyframes bob { 50% { transform: translateY(-3px); } }
+  @media (prefers-reduced-motion: reduce) { .say, .scene .critter, .dots i { animation: none !important; } }
+  .cube .info { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
+  .cube .pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .scene .mate-pic { position: absolute; bottom: 0; width: 74px; height: 74px; }
+  .scene .mate-pic.left { left: 10px; } .scene .mate-pic.right { right: 10px; }
+  .scene .mate-pic.busy { animation: bounce 1.6s ease-in-out infinite; }
+  .mates { display: flex; flex-direction: column; gap: 4px; border-top: 2px dashed var(--line-soft); padding-top: 8px; }
+  .mate { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 2px 4px; border-radius: 10px; text-align: left; position: relative; }
+  .mate:hover { background: var(--paper); }
+  .mate img { width: 30px; height: 30px; flex: none; }
+  .mate b { flex: 1; font-size: 14px; }
+  .mate .pill { font-size: 12px; padding: 2px 9px; }
+  .mate-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+  .seat-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .seat-row button { display: flex; align-items: center; gap: 6px; border: 2px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 12px 3px 4px; font-weight: 800; font-size: 13px; }
+  .seat-row button.on { border-color: var(--moss); background: var(--ok-bg); }
+  .seat-row img { width: 26px; height: 26px; }
+  .waiting { border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 16px; background: var(--paper); }
+  .waiting h4 { margin: 0 0 6px; }
+  .waiting ul { margin: 6px 0 10px; padding-left: 20px; font-size: 14px; }
+  .pill.long-shift { --c: var(--mustard-ink); --c-bg: var(--mustard-bg); cursor: help; }
+  .who { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .who strong { font-family: var(--display); font-size: 19px; }
+  .day { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .pill { align-self: flex-start; padding: 3px 11px; border-radius: 999px; font-weight: 800; font-size: 13px; background: var(--c-bg); color: var(--c); white-space: nowrap; }
+  .stages { display: flex; gap: 6px; align-items: center; }
+  .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--line-soft); border: 0; padding: 0; }
+  .dot.on { background: var(--moss); }
+  .dot.now { background: var(--mustard); box-shadow: 0 0 0 3px var(--mustard-bg); }
+  .dot:hover { outline: 2px solid var(--muted); outline-offset: 2px; }
+  .stages span { font-size: 13px; color: var(--muted); margin-left: 4px; }
+  .task { margin: 0; font-size: 15px; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .task em { color: var(--muted); }
+  .cube footer { display: flex; align-items: center; gap: 8px; border-top: 2px dotted var(--line); padding-top: 10px; font-size: 13px; color: var(--muted); }
+  .cube footer .grow { flex: 1; }
+  .badge { background: var(--mustard-bg); border-radius: 8px; padding: 2px 8px; color: var(--mustard-ink); font-weight: 800; }
+  .vacant {
+    border: 3px dashed var(--wall); border-radius: 26px 26px 18px 18px; min-height: 380px; background: transparent; color: var(--muted);
+    display: grid; place-items: center; text-align: center; font-weight: 800; font-size: 16px;
+  }
+  .vacant:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .vacant .peek { display: flex; justify-content: center; margin-bottom: 8px; }
+  .vacant .peek img { width: 64px; height: 64px; margin: 0 -8px; }
+  .empty { text-align: center; color: var(--muted); padding: 20px 0; }
+
+  .shelf { margin-top: 30px; }
+  .shelf summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-size: 18px; list-style: none; display: flex; align-items: center; gap: 8px; }
+  .shelf summary::-webkit-details-marker { display: none; }
+  .shelf summary::before { content: '▸'; color: var(--muted); transition: transform .15s; }
+  .shelf[open] summary::before { transform: rotate(90deg); }
+  .closed-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+  .closed-list li { display: flex; align-items: center; gap: 12px; background: var(--card); border: 2px solid var(--line-soft); border-radius: 16px; padding: 8px 14px; flex-wrap: wrap; }
+  .closed-list img { width: 42px; height: 42px; }
+  .closed-list .what { flex: 1; min-width: 180px; }
+  .closed-list .what b { display: block; }
+  .closed-list .what span { color: var(--muted); font-size: 13px; }
+  .quiet { margin-bottom: 18px; }
+  .quiet > p { margin: 0 0 4px; }
+
+  /* Meadow */
+  .page-head { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .page-head h2 { margin: 0; font-size: 26px; }
+  .page-head p { margin: 2px 0 0; color: var(--muted); }
+  .meadow { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; }
+  .critter-card { background: var(--card); border: 3px solid var(--wall); border-radius: 24px; padding: 14px 16px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+  .critter-card.hired { border-color: var(--line-soft); }
+  .critter-card img { width: 130px; height: 130px; }
+  .critter-card .name { text-transform: uppercase; letter-spacing: .04em; font-family: var(--display); font-weight: 700; font-size: 20px; border: 2px solid transparent; background: transparent; text-align: center; width: 100%; border-radius: 10px; padding: 2px 6px; }
+  .critter-card .name:hover, .critter-card .name:focus { border-color: var(--line); outline: none; }
+  .critter-card .kind { color: var(--berry-ink); font-weight: 700; font-size: 13px; margin-top: -4px; }
+  .critter-card .bio { font-size: 13px; font-style: italic; line-height: 1.35; }
+  .critter-card .resume { font-size: 13px; color: var(--muted); min-height: 19px; }
+  .critter-card > .btn { margin-top: auto; }
+
+  /* Usage */
+  .meter { display: inline-block; width: 120px; height: 10px; border-radius: 999px; background: var(--line-soft); overflow: hidden; vertical-align: middle; }
+  .meter i { display: block; height: 100%; border-radius: 999px; background: var(--moss); }
+  .meter.warm i { background: var(--mustard); }
+  .meter.hot i { background: var(--accent); }
+  .burrow-usage { margin-top: 6px !important; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .burrow-usage .meter { width: 90px; }
+  .panel.usage { margin-bottom: 22px; border-color: var(--moss); }
+  .usage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .limits { display: grid; gap: 10px; margin: 12px 0 6px; }
+  .limit { display: grid; grid-template-columns: 130px minmax(120px, 1fr) 48px auto; gap: 12px; align-items: center; }
+  .limit .meter { width: 100%; height: 14px; }
+  .limit .pct { font-weight: 800; text-align: right; }
+  .usage-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 14px; }
+  .usage-table th, .usage-table td { text-align: left; padding: 8px 10px; border-bottom: 1px dashed var(--line); font-variant-numeric: tabular-nums; }
+  .usage-table thead th { font-size: 12px; color: var(--muted); font-weight: 800; }
+  .who-cell { display: flex; align-items: center; gap: 10px; }
+  .who-cell img { width: 38px; height: 38px; }
+  .who-cell small { display: block; color: var(--muted); font-weight: 600; }
+  .usage-split { display: flex; gap: 28px; align-items: center; margin: 16px 0 4px; flex-wrap: wrap; }
+  .pie { width: 150px; height: 150px; border-radius: 50%; flex: none; position: relative; }
+  .pie::after { content: ''; position: absolute; inset: 34px; border-radius: 50%; background: var(--card); }
+  .pie-title { margin: 0 0 8px; font-size: 15px; }
+  .pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .pie-legend li { display: flex; align-items: center; gap: 8px; }
+  .pie-legend i { width: 12px; height: 12px; border-radius: 3px; }
+  .pie-legend img { width: 28px; height: 28px; }
+  .pie-legend span { margin-left: 6px; font-weight: 800; }
+  .share { display: inline-block; width: 60px; height: 8px; border-radius: 999px; background: var(--line-soft); margin-right: 8px; overflow: hidden; vertical-align: middle; }
+  .share i { display: block; height: 100%; background: var(--berry); border-radius: 999px; }
+  @media (max-width: 640px) { .limit { grid-template-columns: 1fr auto; } .limit .meter { grid-column: 1 / -1; } }
+
+  .guardrails { grid-column: 1 / -1; border-color: var(--berry); }
+  .guard-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 8px; }
+  .guard-cols h4 { margin: 0 0 6px; font-size: 14px; }
+  .guard-cols ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+  .guard-log { list-style: none; padding-left: 0 !important; }
+  .guard-log small { display: block; color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
+  @media (max-width: 900px) { .guard-cols { grid-template-columns: 1fr; } }
+  /* Settings */
+  .settings { display: grid; gap: 22px; grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr); align-items: start; }
+  .settings { grid-template-rows: auto auto auto 1fr; }
+  .settings .panel { grid-column: 1; }
+  .settings .you .label:first-of-type { margin-top: 0; }
+  .settings .you p { margin: 6px 0 0; font-size: 13px; line-height: 1.45; }
+  .settings .alerts p { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
+  .settings .critters-panel { grid-column: 2; grid-row: 1 / span 4; }
+  @media (max-width: 900px) { .settings { grid-template-columns: 1fr; } .settings .alerts, .settings .you, .settings .critters-panel { grid-column: auto; grid-row: auto; } .settings { grid-template-rows: none; } }
+  .panel { background: var(--card); border: 3px solid var(--wall); border-radius: 22px; padding: 18px 22px; }
+  .panel h3 { margin: 0 0 4px; font-size: 19px; }
+  .panel > p { margin: 0 0 14px; color: var(--muted); }
+  .themes { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .themes button { border: 3px solid var(--line); border-radius: 18px; background: var(--paper); padding: 10px; font-weight: 800; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  .themes button.on { border-color: var(--accent); background: var(--accent-bg); }
+  .swatch { height: 64px; border-radius: 12px; display: flex; gap: 6px; padding: 10px; align-items: flex-end; border: 1px solid rgba(0,0,0,.08); }
+  .swatch i { width: 18px; height: 18px; border-radius: 50%; }
+  .swatch.light { background: #F8F1DC; } .swatch.dark { background: #232E1C; }
+  .swatch.system { background: linear-gradient(135deg, #F8F1DC 50%, #232E1C 50%); }
+  .brains { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .brains li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 2px solid var(--line-soft); border-radius: 16px; padding: 8px 14px; }
+  .brains img { width: 46px; height: 46px; }
+  .brains .what { flex: 1; min-width: 160px; }
+  .brains .what b { display: block; }
+  .brains .what span { color: var(--muted); font-size: 13px; display: block; }
+  .brains .what .bio { color: var(--berry-ink); font-style: italic; margin-top: 2px; }
+  .brains .pickers { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; align-items: center; min-width: 300px; }
+  .brains select { width: 100%; }
+
+  /* Hire modal */
+  #modal { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; background: rgba(30, 36, 24, .45); padding: 16px; }
+  #modal.open { display: grid; }
+  .sheet { background: var(--card); border-radius: 26px; border: 3px solid var(--wall); width: min(760px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px 24px; box-shadow: var(--shadow); }
+  .sheet h2 { margin: 0 0 4px; font-size: 24px; }
+  .sheet .sub { margin: 0 0 16px; color: var(--muted); }
+  .pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+  .pick button { background: var(--paper); border: 3px solid transparent; border-radius: 18px; padding: 8px 4px 6px; display: flex; flex-direction: column; align-items: center; font-weight: 800; font-size: 14px; }
+  .pick button img { width: 76px; height: 76px; }
+  .pick button small { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .pick button.on { border-color: var(--accent); background: var(--accent-bg); }
+  .sheet .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .sheet.setup { width: min(480px, 100%); text-align: center; }
+  .sheet.setup img { width: 96px; height: 96px; }
+  .sheet.setup .label, .sheet.setup .field, .sheet.setup .hint { text-align: left; }
+  .sheet.setup .hint { margin: 6px 0 0; font-size: 13px; }
+  .sheet.setup .actions { justify-content: center; }
+
+  /* Forms */
+  .field { width: 100%; border: 2px solid var(--line); border-radius: 14px; padding: 9px 12px; background: var(--paper); }
+  textarea.field { resize: vertical; min-height: 70px; }
+  .field:focus { outline: none; border-color: var(--moss); }
+  .label { font-size: 13px; color: var(--muted); font-weight: 700; margin: 12px 0 4px; display: block; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  /* Drawer */
+  #scrim { position: fixed; inset: 0; background: rgba(30, 36, 24, .35); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 10; }
+  #drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(1080px, 94vw); background: var(--card); border-left: 3px solid var(--wall);
+    z-index: 11; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .18s ease;
+  }
+  body.drawer-open #scrim { opacity: 1; pointer-events: auto; }
+  body.drawer-open #drawer { transform: none; }
+  #dHead { padding: 14px 20px 0; }
+  .d-top { display: flex; gap: 12px; align-items: center; }
+  .d-top img { width: 64px; height: 64px; }
+  .d-top .names { flex: 1; min-width: 0; }
+  .d-top .names b { display: block; font-family: var(--display); font-size: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .d-top .names span { color: var(--muted); font-size: 13px; }
+  .x { border: 0; background: transparent; font-size: 22px; color: var(--muted); padding: 0 4px; align-self: flex-start; }
+  .d-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .note-bar { margin-top: 10px; padding: 9px 14px; border-radius: 14px; font-size: 14px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+  .tabs { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 2px dashed var(--line); overflow-x: auto; }
+  .tab { border: 0; background: transparent; padding: 8px 14px; border-radius: 12px 12px 0 0; color: var(--muted); font-weight: 800; white-space: nowrap; }
+  .tab.on { background: var(--paper); color: var(--ink); }
+  #dBody { flex: 1; overflow-y: auto; padding: 16px 20px 30px; }
+  #dFoot { border-top: 2px dashed var(--line); padding: 12px 20px 14px; }
+  #dFoot:empty { display: none; }
+  .composer { display: flex; gap: 8px; align-items: flex-end; }
+  .composer textarea { flex: 1; min-height: 46px; max-height: 200px; resize: none; border: 2px solid var(--line); border-radius: 22px; padding: 11px 16px; background: var(--paper); }
+  .composer textarea:focus { outline: none; border-color: var(--moss); }
+  .hint { font-size: 12px; color: var(--muted); margin: 4px 0 0 6px; }
+  .ship { border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .save-form { display: flex; gap: 8px; }
+  .save-form .field { flex: 1; }
+  .ship-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+  .ship-line .muted { flex: 1; min-width: 200px; }
+  .jobs { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .jobs li { display: flex; gap: 10px; align-items: flex-start; border: 2px solid var(--line-soft); border-radius: 12px; padding: 8px 10px; }
+  .jobs li.off { opacity: .6; }
+  .jobs li > div { flex: 1; }
+  .jobs small { display: block; color: var(--muted); margin-top: 2px; }
+  .jobs input[type=checkbox] { margin-top: 3px; width: 18px; height: 18px; }
+  .job-form { display: flex; flex-direction: column; gap: 8px; }
+  .job-when { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .job-when select, .job-when input { width: auto; }
+  .search-box { font-size: 18px; padding: 14px 18px; border-radius: 999px; margin-bottom: 18px; }
+  .results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .result { width: 100%; text-align: left; border: 2px solid var(--line); border-radius: 16px; background: var(--card); padding: 12px 16px; display: block; }
+  .result:hover { border-color: var(--moss); }
+  .r-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .r-top img { width: 34px; height: 34px; }
+  .r-top b { font-family: var(--display); font-size: 17px; }
+  .r-count { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--muted); }
+  .result p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; }
+  .result small { font-weight: 800; color: var(--muted); }
+  .result mark { background: var(--mustard-bg); color: inherit; border-radius: 3px; padding: 0 2px; }
+  .plan-btn { flex: none; }
+  .plan-btn.on { background: var(--team-bg); border-color: var(--team); color: var(--team); }
+  .file-chip { display: flex; align-items: center; gap: 6px; height: 72px; max-width: 200px; padding: 0 28px 0 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--paper); font-size: 13px; font-weight: 700; margin: 0; position: relative; }
+  .file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-chip.sent { height: auto; padding: 8px 12px; border-radius: 14px; }
+  .undo-btn { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; padding: 2px 4px; opacity: 0; transition: opacity .15s; }
+  .row.me:hover .undo-btn, .undo-btn:focus-visible { opacity: 1; }
+  .undo-btn:hover { color: var(--accent-ink); text-decoration: underline; }
+  @media (hover: none) { .undo-btn { opacity: .8; } }
+  .plan-body { max-height: 320px; overflow: auto; padding: 10px 14px; margin: 0 14px; border: 2px solid var(--line-soft); border-radius: 12px; background: var(--paper); font-size: 14px; line-height: 1.45; }
+  .plan-ask .ask-av span { background: var(--team); }
+  .slash-menu { margin-bottom: 8px; border: 2px solid var(--line); border-radius: 14px; background: var(--card); max-height: 260px; overflow: auto; }
+  .slash-menu button { display: flex; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 12px; font-size: 14px; align-items: baseline; }
+  .slash-menu button b { font-family: var(--mono, ui-monospace, monospace); white-space: nowrap; }
+  .slash-menu button span { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slash-menu button.on, .slash-menu button:hover { background: var(--ok-bg); }
+  .slash-menu .empty { padding: 10px 12px; color: var(--muted); font-size: 13px; }
+  .photo-btn { width: 46px; height: 46px; padding: 0; display: grid; place-items: center; flex: none; }
+  .photo-tray { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .photo-tray:empty { display: none; }
+  .photo-tray figure { position: relative; margin: 0; }
+  .photo-tray img { width: 72px; height: 72px; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); display: block; }
+  .photo-tray .rm { position: absolute; top: -7px; right: -7px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--card); background: var(--ink); color: var(--card); font-size: 12px; line-height: 1; padding: 0; }
+  .photo-tray .busy-photo { width: 72px; height: 72px; border-radius: 12px; border: 2px dashed var(--line); display: grid; place-items: center; font-size: 12px; color: var(--muted); }
+  #drawer.dropping #dFoot { outline: 3px dashed var(--moss); outline-offset: -6px; border-radius: 14px; }
+  .photos { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
+  .photos img { max-width: 220px; max-height: 220px; border-radius: 16px; border: 2px solid var(--line-soft); display: block; object-fit: cover; }
+  #drawer h3 { font-size: 16px; margin: 22px 0 8px; }
+  #drawer h3:first-child { margin-top: 2px; }
+  .choices { display: flex; flex-wrap: wrap; gap: 6px; }
+  .choice { border: 2px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 800; }
+  .choice.on { background: var(--moss); color: var(--moss-ink); border-color: var(--moss); }
+  .radio { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; }
+  .radio input { margin-top: 4px; accent-color: var(--moss); }
+  .radio small { display: block; color: var(--muted); }
+  .sessions { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+  .sessions li { display: flex; gap: 8px; align-items: center; border: 2px solid var(--line-soft); border-radius: 12px; padding: 6px 10px; font-size: 13px; }
+  .sessions li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .worker-row { display: flex; align-items: center; gap: 12px; }
+  .worker-row img { width: 56px; height: 56px; }
+  .worker-row input { max-width: 220px; }
+  .plates { flex-wrap: wrap; }
+  .danger-zone { margin-top: 28px; padding-top: 16px; border-top: 2px dashed var(--line); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* Chat */
+  .chat { display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 86%; padding: 10px 14px; border-radius: 18px; font-size: 15px; word-wrap: break-word; }
+  .msg.me { align-self: flex-end; background: var(--moss); color: var(--moss-ink); border-bottom-right-radius: 5px; }
+  .msg.me a { color: var(--moss-ink); }
+  .msg.them { align-self: flex-start; background: var(--paper); border-bottom-left-radius: 5px; }
+  .md { white-space: pre-wrap; }
+  .md code { background: var(--code); padding: 1px 5px; border-radius: 5px; }
+  .msg.me .md code { background: rgba(255,255,255,.2); }
+  .md .h { display: inline-block; margin-top: 4px; }
+  pre.code { background: var(--code); border: 2px solid var(--line-soft); border-radius: 12px; padding: 8px 12px; overflow-x: auto; margin: 6px 0; white-space: pre; color: var(--ink); }
+  .sys { align-self: center; font-size: 13px; color: var(--muted); text-align: center; }
+  .sys.err { color: var(--bad); font-weight: 700; }
+  details.tool { align-self: stretch; border: 2px solid var(--line-soft); border-radius: 14px; background: var(--card); font-size: 13px; }
+  details.tool > summary { list-style: none; cursor: pointer; padding: 7px 12px; display: flex; gap: 8px; align-items: center; color: var(--muted); }
+  details.tool > summary::-webkit-details-marker { display: none; }
+  details.tool > summary .what { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  details.tool.err > summary { color: var(--bad); }
+  details.tool .tbody { padding: 0 12px 12px; }
+  details.tool pre.out { max-height: 260px; overflow: auto; background: var(--code); border-radius: 10px; padding: 8px 10px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; }
+  details.tool img { max-width: 100%; border-radius: 10px; margin-top: 6px; border: 2px solid var(--line-soft); }
+  .dots { display: inline-flex; gap: 3px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+  .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+  .typing { align-self: flex-start; color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .typing img { width: 34px; height: 34px; }
+
+  /* Message-app thread (Chat tab) */
+  .thread { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+  .day-chip { align-self: center; background: var(--paper); color: var(--muted); font-size: 12px; font-weight: 800; padding: 4px 12px; border-radius: 999px; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row.me { justify-content: flex-end; }
+  .row .av { width: 40px; height: 40px; flex: none; }
+  .stack { display: flex; flex-direction: column; gap: 4px; max-width: 80%; min-width: 0; align-items: flex-start; }
+  .row.me .stack { align-items: flex-end; }
+  .who { font-size: 12px; color: var(--muted); font-weight: 800; margin: 0 0 0 12px; }
+  .bubble { padding: 10px 15px; border-radius: 20px; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; max-width: 100%; }
+  .row.them .bubble { background: var(--bubble); color: var(--ink); border-bottom-left-radius: 6px; }
+  .row.me .bubble { background: var(--moss); color: var(--moss-ink); border-bottom-right-radius: 6px; }
+  .row.me .bubble a { color: inherit; }
+  .row.me .bubble .md code { background: rgba(255,255,255,.2); }
+  .bubble pre.code { white-space: pre-wrap; background: var(--card); }
+  .typing-bubble { display: inline-flex; padding: 14px 16px; }
+  .typing-bubble .dots i { background: var(--moss); }
+  .who-sub { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 12px; }
+
+  /* Diffs */
+  .diff { border: 2px solid var(--line-soft); border-radius: 12px; overflow: auto; max-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; margin-top: 6px; }
+  .dl { white-space: pre; padding: 1px 10px 1px 0; min-width: max-content; }
+  .dl .sign { display: inline-block; width: 22px; text-align: center; color: var(--muted); user-select: none; }
+  .dl.add { background: var(--ok-bg); color: var(--ok); }
+  .dl.del { background: var(--del-bg); color: var(--del); }
+  .dl.hunk { background: var(--paper); color: var(--muted); }
+  .dl.gap { color: var(--muted); font-style: italic; }
+  .file-head { font-weight: 800; font-size: 13px; margin: 14px 0 0; }
+  .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
+
+  /* Approvals */
+  #tray { position: fixed; right: 16px; bottom: 16px; z-index: 20; display: flex; flex-direction: column; gap: 12px; width: min(470px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+  #tray > *, .thread > .ask { flex-shrink: 0; }
+  .ask-more-waiting { font-size: 13px; font-weight: 800; color: var(--accent-ink); }
+  /* "May I?" cards */
+  .ask {
+    background: var(--card); border: 2px solid var(--accent); border-radius: 26px; padding: 0 18px 14px; overflow: hidden;
+    display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .thread .ask { align-self: stretch; margin-left: 48px; }
+  .ask-head { margin: 0 -18px; padding: 14px 18px; background: var(--accent-bg); display: flex; gap: 14px; align-items: center; }
+  .ask-av { position: relative; flex: none; }
+  .ask-av img { width: 54px; height: 54px; display: block; }
+  .ask-av span { position: absolute; top: -6px; right: -14px; background: var(--accent); color: var(--accent-on); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .ask-who { font-size: 13px; color: var(--accent-ink); font-weight: 700; }
+  .ask-q { font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 1.2; }
+  .ask-why { margin: 2px 0 0; font-size: 15px; }
+  .ask-more > summary { cursor: pointer; font-weight: 800; font-size: 13px; color: var(--link); list-style: none; display: inline-flex; gap: 6px; }
+  .ask-more > summary::-webkit-details-marker { display: none; }
+  .ask-more > summary::before { content: '▸'; transition: transform .15s; }
+  .ask-more[open] > summary::before { transform: rotate(90deg); }
+  .ask-more pre.code { white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+  .ask-instead { border: 0; border-bottom: 2px dashed var(--line); background: transparent; padding: 6px 2px; font-size: 14px; width: 100%; color: var(--ink); }
+  .ask-instead:focus { outline: none; border-bottom-color: var(--accent); }
+  .ask-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ask-actions .sp { flex: 1; }
+  .ask-no { background: transparent; border: 0; color: var(--muted); font-weight: 800; padding: 8px 6px; }
+  .ask-no:hover { color: var(--ink); text-decoration: underline; }
+  .ask-always { background: transparent; border: 2px solid var(--moss); color: var(--link); border-radius: 999px; padding: 8px 16px; font-weight: 800; }
+  .ask-yes {
+    background: var(--moss); color: var(--moss-ink); border: 0; border-radius: 999px; padding: 10px 22px; font-weight: 800; font-size: 15px;
+    display: inline-flex; gap: 6px; align-items: center; box-shadow: 0 3px 0 color-mix(in srgb, var(--moss) 55%, #000);
+  }
+  .ask-yes:hover, .ask-always:hover { transform: translateY(-1px); }
+  .ask button:disabled { opacity: .5; transform: none; }
+
+  .conn:not(:empty) { position: fixed; left: 16px; bottom: 16px; z-index: 45; background: var(--accent); color: var(--accent-on); padding: 8px 16px; border-radius: 999px; box-shadow: var(--shadow); }
+  #toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 40; max-width: calc(100vw - 32px); background: var(--ink); color: var(--paper); padding: 10px 18px; border-radius: 999px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #toast.show { opacity: 1; }
+
+  /* Boss's burrow */
+  .whiteboard { background: #FBFCFA; border: 10px solid #B9C2CC; border-radius: 16px; padding: 14px 20px 22px; margin-bottom: 22px;
+    box-shadow: inset 0 0 0 1px #E3E7EA, var(--shadow); color: #2A3825; }
+  .whiteboard .muted { color: #6B7280; }
+  .wb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .wb-head h3 { margin: 0; font-size: 19px; color: #2A3825; }
+  .stickies { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 18px; }
+  .sticky { position: relative; min-height: 150px; padding: 16px 14px 30px; border-radius: 4px 4px 14px 4px; transform: rotate(var(--tilt));
+    box-shadow: 0 6px 14px rgba(40, 40, 30, .16); background: var(--sticky-bg, #FFE9A8); transition: transform .15s ease; }
+  .sticky:focus-within, .sticky:hover { transform: rotate(0deg) scale(1.02); }
+  .sticky::before { content: ''; position: absolute; top: -8px; left: 50%; width: 46px; height: 16px; margin-left: -23px; background: rgba(255,255,255,.55); border-radius: 3px; }
+  .sticky textarea { width: 100%; min-height: 110px; border: 0; background: transparent; resize: none; outline: none; color: #2A2A22;
+    font: 600 21px/1.25 'Caveat', 'Bradley Hand', cursive; }
+  .sticky-tools { position: absolute; right: 8px; bottom: 6px; display: flex; gap: 4px; opacity: .55; }
+  .sticky:hover .sticky-tools, .sticky:focus-within .sticky-tools { opacity: 1; }
+  .sticky .mini { color: #3B3B30; }
+  .dot-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: conic-gradient(#FFD36B 0 25%, #F2B7D6 0 50%, #A9DCE2 0 75%, #BCC8F0 0); }
+  .sticky.c-mustard { --sticky-bg: #FFE59A; } .sticky.c-berry { --sticky-bg: #F6C6DD; } .sticky.c-trip { --sticky-bg: #BFE6EA; }
+  .sticky.c-team { --sticky-bg: #CCD6F5; } .sticky.c-ok { --sticky-bg: #CFEAB9; } .sticky.c-accent { --sticky-bg: #F9CDB5; }
+  .boss-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 18px; }
+  .folder { background: var(--card); border-radius: 22px; border: 3px solid var(--wall); border-top: 8px solid var(--plate, var(--moss)); overflow: hidden; }
+  .folder > header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 2px dashed var(--line); cursor: pointer; }
+  .folder > header:hover { background: var(--paper); }
+  .folder > header img { width: 48px; height: 48px; }
+  .folder > header .names { flex: 1; min-width: 0; }
+  .folder > header .names b { display: block; font-family: var(--display); font-size: 17px; }
+  .folder > header .names span { color: var(--muted); font-size: 13px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; }
+  .cols > div { padding: 12px 16px; min-width: 0; }
+  .cols > div + div { border-left: 2px dashed var(--line); }
+  .cols h4 { margin: 0 0 6px; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
+  .cols h4 > span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; background: var(--mustard); }
+  .cols .ideas h4 > span::before { background: var(--berry); }
+  .cols .ideas .mini[data-action="promote"] { color: var(--berry-ink); }
+  .empty-note { color: var(--muted); font-size: 13px; font-style: italic; padding: 4px 0; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+  .list li:last-child { border-bottom: 0; }
+  .list li .txt { flex: 1; white-space: pre-wrap; word-break: break-word; }
+  .list li.done .txt { text-decoration: line-through; color: var(--muted); }
+  .todo-group { margin-bottom: 14px; }
+  .completed { margin-top: 18px; border-top: 2px dashed var(--line); padding-top: 10px; }
+  .completed > summary { cursor: pointer; font-weight: 800; color: var(--muted); }
+  .completed .list { margin: 8px 0 10px; }
+  .done-link { border: 0; background: var(--team-bg); color: var(--team); font-weight: 800; font-size: 12px; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+  .done-link:hover { text-decoration: underline; }
+  .todo-group > summary { list-style: none; cursor: pointer; margin: 0 0 4px; border-radius: 8px; }
+  .todo-group > summary::-webkit-details-marker { display: none; }
+  .todo-group h5 { margin: 0; font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+  .todo-group h5 .chev { transition: transform .15s; flex: none; }
+  .todo-group:not([open]) h5 .chev { transform: rotate(-90deg); }
+  .todo-group:not([open]) { margin-bottom: 8px; }
+  .todo-group h5 span { background: var(--paper); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--muted); }
+  .owner { border: 0; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .owner.o-critter { background: var(--ok-bg); color: var(--ok); }
+  .owner.o-boss { background: var(--accent-bg); color: var(--accent-ink); }
+  .owner.o-together { background: var(--team-bg); color: var(--team); }
+  .owner.o-none { background: var(--paper); color: var(--muted); border: 1px dashed var(--line); }
+  .todo-add { flex-wrap: wrap; align-items: center; }
+  .todo-add .field { flex: 1 1 260px; }
+  .owner-pick { border: 0; margin: 0; padding: 0; display: flex; gap: 4px; }
+  .owner-pick label { cursor: pointer; }
+  .owner-pick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .owner-pick span { display: inline-block; padding: 5px 11px; border-radius: 999px; border: 2px solid var(--line); font-size: 13px; font-weight: 800; }
+  .owner-pick input:checked + span { background: var(--moss); border-color: var(--moss); color: var(--moss-ink); }
+  .owner-pick input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .list .by { font-size: 11px; font-weight: 800; color: var(--berry-ink); background: var(--berry-bg); padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+  .list input[type=checkbox] { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--mustard); }
+  .plates { display: flex; gap: 8px; }
+  .plates button { border: 3px solid transparent; border-radius: 999px; padding: 5px 14px; font-weight: 800; font-size: 13px; background: var(--c); color: var(--c-on); }
+  .plates button.on { border-color: var(--ink); }
+  .mini { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; padding: 0 3px; white-space: nowrap; }
+  .mini:hover { color: var(--ink); }
+  .add { display: flex; gap: 6px; margin-top: 8px; }
+  .add input { flex: 1; min-width: 0; }
+  .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .history li { border: 2px solid var(--line-soft); border-radius: 16px; padding: 10px 12px; font-size: 14px; }
+  .history .h-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+  .history p { margin: 3px 0 0; white-space: pre-wrap; }
+  .history .note { color: var(--muted); font-size: 13px; }
+  .history .h-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .day-summary { margin-top: 8px; }
+  .day-summary > summary { cursor: pointer; font-weight: 800; font-size: 13px; color: var(--link); }
+  .day-summary .bubble { background: var(--bubble); margin-top: 6px; border-radius: 16px; }
+  .offline { max-width: 560px; margin: 60px auto; background: var(--card); border: 3px solid var(--wall); border-radius: 22px; padding: 24px; }
+  .offline pre { background: var(--code); padding: 10px; border-radius: 12px; white-space: pre-wrap; }
+  /* Phones (e.g. over Tailscale) */
+  @media (max-width: 640px) {
+    .topbar { padding-top: 12px; padding-bottom: 10px; }
+    .topbar nav { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+    .topbar nav .btn { flex: none; }
+    .brand h1 { font-size: 20px; }
+    #drawer { width: 100vw; border-left: 0; }
+    #dHead, #dBody, #dFoot, .tabs { padding-left: 14px; padding-right: 14px; }
+    .d-top img { width: 48px; height: 48px; }
+    .burrow { flex-wrap: wrap; gap: 12px; }
+    .burrow-door { width: 60px; height: 58px; }
+    .burrow-door svg { width: 46px; height: 52px; }
+    .knock { margin-left: 0; font-size: 16px; padding: 6px 14px; }
+    .usage-table { display: block; overflow-x: auto; white-space: nowrap; }
+    .limit { grid-template-columns: 1fr auto; }
+    #tray { right: 8px; left: 8px; bottom: 8px; width: auto; }
+    .ask-actions button { min-height: 44px; }
+    .msg, .stack { max-width: 92%; }
+    .sheet { padding: 18px 16px; }
+    .pick { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+    .stickies { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .topbar, main { padding-left: 16px; padding-right: 16px; }
+    .cols, .row2 { grid-template-columns: 1fr; }
+    .cols > div + div { border-left: 0; border-top: 2px dashed var(--line); }
+    .burrow .go { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="var(--moss)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 32c0-14 10-24 24-24 0 14-10 24-24 24z"></path><path d="M8 32 22 18"></path></svg>
+    <div><h1>Agent Office</h1><p id="today"></p></div>
+  </div>
+  <nav>
+    <span class="conn" id="conn"></span>
+    <button class="btn" data-action="go" data-v="floor" id="nav-floor">The Floor</button>
+    <button class="btn" data-action="go" data-v="boss" id="nav-boss">Boss's Burrow</button>
+    <button class="btn" data-action="go" data-v="meadow" id="nav-meadow">The Meadow</button>
+    <button class="btn" data-action="go" data-v="search" id="nav-search" title="Search all chats (⌘K)">Search</button>
+    <button class="btn" data-action="go" data-v="settings" id="nav-settings">Settings</button>
+    <button class="btn" data-action="export" title="Download a backup of everything">Export</button>
+    <label class="btn" title="Restore from a backup file">Import<input type="file" id="importFile" accept="application/json,.json" hidden></label>
+  </nav>
+</header>
+<main id="app"></main>
+<div id="scrim" data-action="close-drawer"></div>
+<aside id="drawer" aria-label="Cubicle">
+  <div id="dHead"></div>
+  <nav class="tabs" id="dTabs"></nav>
+  <div id="dBody"></div>
+  <div id="dFoot"></div>
+</aside>
+<div id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div>
+<div id="tray" aria-live="polite"></div>
+<div id="toast" role="status"></div>
+
+<script>
+const TOKEN = '__OFFICE_TOKEN__';
+const ONLINE = !TOKEN.startsWith('__');
+const STAGES = ['Planning', 'Building', 'Testing', 'Polish', 'Shipped'];
+const STATUSES = {
+  working: { label: 'Working',         chip: 'Working',          c: 'ok' },
+  needs:   { label: 'Needs You',       chip: 'Need You',         c: 'warn' },
+  blocked: { label: 'Stuck',           chip: 'Stuck',            c: 'bad' },
+  break:   { label: 'Snack Break',     chip: 'On a Snack Break', c: 'nap' },
+  out:     { label: 'Napping',         chip: 'Napping',          c: 'sleep' },
+  home:    { label: 'Gone Home',       chip: 'Gone Home',        c: 'off' },
+  away:    { label: 'On a Field Trip', chip: 'On a Field Trip',  c: 'trip' },
+  crew:    { label: 'Leading a Team',  chip: 'Leading a Team',   c: 'team' },
+};
+const SAYS = {
+  busy:    ['tap tap tap…', 'scribbling…', 'on a roll…', 'nibbling at it…'],
+  working: ['scribbling…', 'on a roll…', 'thinking…'],
+  needs:   ['psst, boss?', 'a quick question', 'boss? boss?', 'your turn!'],
+  blocked: ['hmm, stuck', 'prickly problem', 'tangled up'],
+  break:   ['snack break', 'stretching…', 'tea time'],
+  out:     ['zzz', 'catnap', 'dozing…'],
+  home:    ['gone home', 'see you tomorrow', 'home for the day'],
+  away:    ['field trip!', 'back soon', 'off to the big studio'],
+  crew:    ["the team's on it", 'checking on helpers', 'delegating…'],
+};
+const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'];
+
+let office = { projects: [], workers: [], whiteboard: '', settings: { theme: 'system' } };
+const MODELS = [
+  ['', 'Default (your Claude Code setting)'],
+  ['claude-fable-5-1', 'Fable 5.1'],
+  ['claude-opus-5-5', 'Opus 5.5'],
+  ['claude-sonnet-5-5', 'Sonnet 5.5'],
+  ['claude-haiku-4-5-20251001', 'Haiku 4.5'],
+];
+const THEMES = [['system', 'Match my Mac'], ['light', 'Light'], ['dark', 'Dark']];
+const APPROVALS = [
+  ['auto', 'Auto: Claude decides what\'s safe', 'Claude Code\'s built-in safety check approves everyday actions on its own and blocks risky ones instead of asking. The fewest approvals.'],
+  ['free', 'Free inside the project folder (recommended)', 'Edits files and runs commands without asking, but only inside this folder. Anything that would change the rest of your Mac, or reach an unfamiliar website, still asks you.'],
+  ['acceptEdits', 'Auto-approve file edits, ask before commands', 'Edits files in this folder without asking. Every command asks first.'],
+  ['default', 'Ask me before everything', 'Asks before every file edit and every command. Reading files never asks.'],
+];
+// How hard the critter thinks: more effort is slower and uses more of your plan, but goes deeper.
+const EFFORTS = [['', 'Default'], ['low', 'Low (quick)'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max (deepest)']];
+const VOICES = [['plain', 'Plain'], ['light', 'A little critter'], ['full', 'Lots of critter']];
+const approvalName = k => (APPROVALS.find(a => a[0] === (k || 'default')) || APPROVALS[2])[1].replace(' (recommended)', '');
+const darkMedia = matchMedia('(prefers-color-scheme: dark)');
+function applyTheme() {
+  if (SHOTTING && SHOT.get('theme')) { document.documentElement.dataset.theme = SHOT.get('theme'); return; }
+  const pref = office.settings?.theme || 'system';
+  document.documentElement.dataset.theme = pref === 'system' ? (darkMedia.matches ? 'dark' : 'light') : pref;
+  try { localStorage.setItem('agentOffice.theme', pref); } catch (e) {}
+  window.webkit?.messageHandlers?.office?.postMessage({ kind: 'theme', value: pref });
+}
+darkMedia.addEventListener('change', applyTheme);
+const modelName = id => (MODELS.find(m => m[0] === (id || '')) || MODELS[0])[1];
+let busy = new Set();
+let perms = new Map();
+let view = 'floor';
+try { view = localStorage.getItem('agentOffice.view') || 'floor'; } catch (e) {}
+let drawer = { id: null, tab: 'chat' };
+let chat = null;
+let pastChat = null;
+let folders = [];
+let sessionsList = null;
+let changes = null;
+let hire = null;          // { mode: 'new'|'reopen', projectId, workerId, name, folder }
+let pendingFocus = null;
+// Screenshot mode (used to capture design references): read-only, no side effects.
+const SHOT = new URLSearchParams(location.search);
+const SHOTTING = SHOT.has('shot');
+let shotDone = false;
+function applyShot() {
+  if (!SHOTTING || shotDone) return;
+  shotDone = true;
+  if (SHOT.get('theme')) document.documentElement.dataset.theme = SHOT.get('theme');
+  if (SHOT.get('view')) { view = SHOT.get('view'); render(); }
+  const who = SHOT.get('open');
+  const p = who && office.projects.find(x => !x.closed && (workerOf(x).name === who || x.name === who));
+  if (p && SHOT.has('ask')) perms.set('shot-demo', { reqId: 'shot-demo', projectId: p.id, toolName: 'Bash', canAlways: true,
+    input: { command: 'npm run build', description: 'Build the site so I can check the new hero on mobile' } });
+  if (p) openDrawer(p.id, SHOT.get('tab') || 'chat');
+  if (SHOT.has('hire')) openHire({ name: 'Holiday Mini Sessions' });
+  render();
+  // Let the page go quiet so a headless browser can take its picture.
+  setTimeout(() => { try { es.close(); } catch (e) {} connected = true; render(); if (drawer.id) renderDrawer(false); }, 2500);
+}
+let connected = false;
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const find = id => office.projects.find(p => p.id === id);
+const findWorker = id => office.workers.find(w => w.id === id);
+const workerOf = p => findWorker(p?.workerId) || { id: null, name: 'Worker', critter: null, animal: 'worker' };
+const hiredAt = wid => office.projects.find(p => !p.closed && p.workerId === wid);
+// Cubicles are main projects; desk mates are extra seats at a cubicle (deskOf = the cubicle's id).
+const openProjects = () => office.projects.filter(p => !p.closed && !p.deskOf);
+const allOpen = () => office.projects.filter(p => !p.closed);
+const seatsOf = p => office.projects.filter(x => x.deskOf === p.id && !x.closed);
+const homeOf = p => (p?.deskOf && find(p.deskOf)) || p;
+const closedProjects = () => office.projects.filter(p => p.closed && !p.deskOf).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0));
+const freeWorkers = () => office.workers.filter(w => !hiredAt(w.id));
+// When every critter is hired: the cubicles nobody is working in, quietest first, to suggest closing.
+const quietProjects = () => office.projects
+  .filter(p => !p.closed && !p.deskOf && ![p, ...seatsOf(p)].some(x => busy.has(x.id) || ['working', 'needs'].includes(x.status)))
+  .sort((a, b) => a.updatedAt - b.updatedAt).slice(0, 3);
+function quietHTML() {
+  const q = quietProjects();
+  return `<div class="quiet"><p><b>Everyone's at a desk.</b> Close a quiet project to free a critter. You can reopen it any time.</p>
+    ${q.length ? `<ul class="closed-list">${q.map(p => { const w = workerOf(p), n = 1 + seatsOf(p).length; return `
+      <li>${critterImg(w, '', false)}<div class="what"><b>${esc(p.name)}</b><span>With ${esc(w.name)} · last busy ${ago(p.updatedAt)}${n > 1 ? ` · frees ${n} critters` : ''}</span></div>
+        <button class="btn small" data-action="close-project" data-id="${p.id}">Close Project</button></li>`; }).join('')}</ul>`
+      : '<p class="muted">Every cubicle is busy right now. Check back when someone finishes.</p>'}</div>`;
+}
+const critterImg = (w, cls = 'critter', alt = true) => w?.critter
+  ? `<img class="${cls}" src="/assets/critters/${esc(w.critter)}.png" alt="${alt ? `${esc(w.name)} the ${esc(animalOf(w))}` : ''}">` : '';
+const titleCase = t => String(t || '').replace(/\b\w/g, c => c.toUpperCase());
+const animalOf = w => titleCase(w.animal);
+// Hide file-section references like "(§13)" on screen; the text itself keeps them.
+const showTodo = t => String(t || '').replace(/\s*\(§[\d.,\s§–-]+\)/g, '').trim();
+const folderName = f => String(f || '').split('/').filter(Boolean).pop() || '';
+const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7);
+const pickFrom = (list, seed) => list[Math.abs(hash(seed)) % list.length];
+function ago(t) {
+  if (!t) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : d + 'd ago';
+}
+const fmtDate = t => t ? new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+const shortPath = (f, folder) => folder && f?.startsWith(folder + '/') ? f.slice(folder.length + 1) : (f || '').replace(/^\/Users\/[^/]+/, '~');
+const PLATES = { moss: 'Moss', berry: 'Berry', mustard: 'Mustard', trip: 'Teal', team: 'Periwinkle', sleep: 'Lavender', rose: 'Rose', sage: 'Sage' };
+const plateVars = p => { const c = PLATES[p.plate] ? p.plate : 'moss'; return `--plate:var(--plate-${c});--plate-on:var(--plate-${c}-on)`; };
+const statusVars = k => { const c = (STATUSES[k] || STATUSES.out).c; return `--c:var(--${c});--c-bg:var(--${c}-bg)`; };
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method, headers: { 'Content-Type': 'application/json', 'X-Office-Token': TOKEN },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { toast(data.error || `Something went wrong (${res.status}).`); throw new Error(data.error); }
+  return data;
+}
+
+const patchTimers = {};
+function patch(p, fields, { wait = 0 } = {}) {
+  Object.assign(p, fields);
+  p.updatedAt = Date.now();
+  const key = p.id + Object.keys(fields).join();
+  clearTimeout(patchTimers[key]);
+  const go = () => api('PATCH', `/api/projects/${p.id}`, fields).catch(() => {});
+  if (wait) patchTimers[key] = setTimeout(go, wait); else go();
+}
+function renameWorker(w, name, wait = 500) {
+  w.name = name;
+  clearTimeout(patchTimers['w' + w.id]);
+  if (name.trim()) patchTimers['w' + w.id] = setTimeout(() => api('PATCH', `/api/workers/${w.id}`, { name }).catch(() => {}), wait);
+}
+
+/* ---------- Markdown + diffs ---------- */
+function md(s) {
+  return String(s).split('```').map((part, i) => {
+    if (i % 2) {
+      const nl = part.indexOf('\n');
+      const code = nl >= 0 && /^[\w+#.-]*$/.test(part.slice(0, nl).trim()) ? part.slice(nl + 1) : part;
+      return `<pre class="code">${esc(code.replace(/\n$/, ''))}</pre>`;
+    }
+    const h = esc(part.replace(/^\n+|\n+$/g, ''))
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+      .replace(/^#{1,6} (.+)$/gm, '<b class="h">$1</b>');
+    return h ? `<div class="md">${h}</div>` : '';
+  }).join('');
+}
+function diffLines(a, b) {
+  const A = String(a ?? '').split('\n'), B = String(b ?? '').split('\n');
+  if (a === '' || a == null) return B.map(t => ['+', t]);
+  const n = A.length, m = B.length;
+  if (n * m > 250000) return [...A.map(t => ['-', t]), ...B.map(t => ['+', t])];
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { out.push([' ', A[i]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) out.push(['-', A[i++]]);
+    else out.push(['+', B[j++]]);
+  }
+  while (i < n) out.push(['-', A[i++]]);
+  while (j < m) out.push(['+', B[j++]]);
+  return out;
+}
+function diffHTML(lines, maxLines = 400) {
+  const out = [];
+  let k = 0;
+  while (k < lines.length && out.length < maxLines) {
+    if (lines[k][0] === ' ') {
+      let e = k; while (e < lines.length && lines[e][0] === ' ') e++;
+      const run = e - k;
+      if (run > 7) {
+        const head = k === 0 ? 0 : 3, tail = e === lines.length ? 0 : 3;
+        for (let x = k; x < k + head; x++) out.push(lineHTML(lines[x]));
+        out.push(`<div class="dl gap"><span class="sign">⋯</span>${run - head - tail} unchanged lines</div>`);
+        for (let x = e - tail; x < e; x++) out.push(lineHTML(lines[x]));
+      } else for (let x = k; x < e; x++) out.push(lineHTML(lines[x]));
+      k = e;
+    } else out.push(lineHTML(lines[k++]));
+  }
+  if (k < lines.length) out.push(`<div class="dl gap"><span class="sign">⋯</span>${lines.length - k} more lines</div>`);
+  return `<div class="diff">${out.join('')}</div>`;
+}
+function lineHTML([s, t]) {
+  const cls = s === '+' ? 'add' : s === '-' ? 'del' : s === '@' ? 'hunk' : '';
+  return `<div class="dl ${cls}"><span class="sign">${s === '@' ? '' : esc(s)}</span>${esc(t)}</div>`;
+}
+
+/* ---------- Tool display ---------- */
+function toolName(name) {
+  const m = /^mcp__(.+?)__(.+)$/.exec(name);
+  return m ? `${m[2].replace(/_/g, ' ')} (${m[1].replace(/^claude-in-chrome$/, 'Chrome')})` : name;
+}
+function toolSummary(name, input, folder) {
+  const i = input || {};
+  if (name === 'Bash') return `<code>${esc(i.command)}</code>`;
+  if (i.file_path) return esc(shortPath(i.file_path, folder));
+  if (i.notebook_path) return esc(shortPath(i.notebook_path, folder));
+  if (i.pattern) return `<code>${esc(i.pattern)}</code>`;
+  if (i.url) return esc(i.url);
+  if (i.query) return esc(i.query);
+  if (i.description) return esc(i.description);
+  const s = JSON.stringify(i);
+  return s && s !== '{}' ? `<code>${esc(s.slice(0, 120))}</code>` : '';
+}
+function toolPreview(name, input) {
+  const i = input || {};
+  if (name === 'Edit') return diffHTML(diffLines(i.old_string, i.new_string));
+  if (name === 'MultiEdit') return (i.edits || []).map(e => diffHTML(diffLines(e.old_string, e.new_string))).join('');
+  if (name === 'Write') return diffHTML(diffLines('', i.content), 200);
+  if (name === 'NotebookEdit') return diffHTML(diffLines('', i.new_source), 200);
+  if (name === 'Bash') return `<pre class="code">${esc(i.command)}</pre>${i.description ? `<div class="muted">${esc(i.description)}</div>` : ''}`;
+  const s = JSON.stringify(i, null, 2);
+  return s && s !== '{}' ? `<pre class="code">${esc(s.slice(0, 3000))}</pre>` : '';
+}
+const TOOL_VERBS = { Bash: 'run a command', Edit: 'edit a file', MultiEdit: 'edit a file', Write: 'write a file', NotebookEdit: 'edit a notebook', WebFetch: 'open a web page', WebSearch: 'search the web' };
+
+/* ---------- Usage ---------- */
+let usage = null;
+let guardLog = [];
+async function fetchUsage() {
+  if (!ONLINE) return;
+  try {
+    const r = await fetch('/api/usage', { headers: { 'X-Office-Token': TOKEN } });
+    if (r.ok) { usage = await r.json(); if (view === 'floor' || view === 'boss') render(); }
+  } catch (e) {}
+}
+if (!SHOTTING) setInterval(fetchUsage, 60000);
+const fmtTok = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n || 0);
+const levelOf = pct => pct >= 85 ? 'hot' : pct >= 60 ? 'warm' : 'calm';
+function resetText(ms) {
+  if (!ms) return '';
+  const d = new Date(ms), now = new Date();
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? `resets ${time}` : `resets ${d.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+}
+function meterHTML(pct) {
+  const v = Math.max(0, Math.min(100, pct || 0));
+  return `<span class="meter ${levelOf(v)}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}"><i style="width:${v}%"></i></span>`;
+}
+function limitRow(label, lim) {
+  if (!lim || lim.pct == null) return `<div class="limit"><b>${label}</b><span class="muted">No reading yet. It shows up once the desktop app or a critter checks in.</span></div>`;
+  return `<div class="limit"><b>${label}</b>${meterHTML(lim.pct)}<span class="pct">${lim.pct}%</span><span class="muted">${resetText(lim.resetsAt)}</span></div>`;
+}
+function usagePanel() {
+  if (!usage) return `<section class="panel usage"><h3>Claude usage</h3><p class="muted">Loading…</p></section>`;
+  const { plan } = usage;
+  const usageOf = id => usage.projects.find(x => x.id === id);
+  const addUp = (a, b) => { if (!b) return a; if (!a) return b; const out = { ...a }; for (const k of Object.keys(a)) if (a[k] && typeof a[k] === 'object') out[k] = Object.fromEntries(Object.keys(a[k]).map(f => [f, (a[k][f] || 0) + (b[k]?.[f] || 0)])); return out; };
+  const rows = openProjects().map(p => ({ p, u: seatsOf(p).reduce((acc, m) => addUp(acc, usageOf(m.id)), usageOf(p.id)) })).filter(r => r.u);
+  const total5 = rows.reduce((a, r) => a + r.u.fiveHour.fresh, 0);
+  let acc = 0;
+  const slices = rows.filter(r => r.u.fiveHour.fresh > 0).map(r => {
+    const pct = total5 ? r.u.fiveHour.fresh / total5 * 100 : 0;
+    const from = acc; acc += pct;
+    return { r, pct, from, to: acc, color: `var(--plate-${PLATES[r.p.plate] ? r.p.plate : 'moss'})` };
+  });
+  const pie = slices.length ? `conic-gradient(${slices.map(x => `${x.color} ${x.from.toFixed(2)}% ${x.to.toFixed(2)}%`).join(', ')})` : 'var(--line-soft)';
+  const share = r => total5 ? Math.round(r.u.fiveHour.fresh / total5 * 100) : 0;
+  return `
+  <section class="panel usage">
+    <div class="usage-head"><h3>Claude usage</h3>
+      <span class="muted">${plan.fiveHour.at ? `Plan reading ${ago(plan.fiveHour.at)}` : ''}</span></div>
+    <div class="limits">
+      ${limitRow('5-hour window', plan.fiveHour)}
+      ${limitRow('This week', plan.week)}
+      ${plan.weekOpus ? limitRow('This week (Opus)', plan.weekOpus) : ''}
+      ${plan.weekSonnet ? limitRow('This week (Sonnet)', plan.weekSonnet) : ''}
+    </div>
+    <div class="usage-split">
+      <div class="pie" style="background:${pie}" role="img" aria-label="Share of your critters' usage in the last 5 hours"></div>
+      <div>
+        <h4 class="pie-title">Who used the last 5 hours</h4>
+        <ul class="pie-legend">${slices.map(x => { const w = workerOf(x.r.p); return `
+          <li><i style="background:${x.color}"></i>${critterImg(w, '', false)}<b>${esc(w.name)}</b><span>${Math.round(x.pct)}%</span></li>`; }).join('') || '<li class="muted">No critter work in the last 5 hours.</li>'}</ul>
+      </div>
+    </div>
+    <table class="usage-table">
+      <thead><tr><th scope="col">Critter</th><th scope="col">Share of 5 hours</th><th scope="col">This week</th><th scope="col">This shift</th><th scope="col">All time</th></tr></thead>
+      <tbody>${rows.map(({ p, u }) => { const w = workerOf(p); return `
+        <tr>
+          <th scope="row"><span class="who-cell">${critterImg(w, '', false)}<span><b>${esc(w.name)}</b><small>${esc(p.name)}</small></span></span></th>
+          <td><b>${share({ u })}%</b> <small class="muted">· ${fmtTok(u.fiveHour.fresh)}</small></td>
+          <td>${fmtTok(u.week.fresh)}</td>
+          <td>${fmtTok(u.today.fresh)} <small class="muted">· ${u.today.replies} replies</small></td>
+          <td>${fmtTok(u.total.fresh)}</td>
+        </tr>`; }).join('')}</tbody>
+    </table>
+  </section>`;
+}
+
+/* ---------- Floor ---------- */
+function askingCount(id) { let n = 0; for (const r of perms.values()) if (r.projectId === id) n++; return n; }
+function saying(p) {
+  if (askingCount(p.id)) return ['May I?', 'warn'];
+  if (p.wrapping) return ['packing up…', ''];
+  if (p.helpers?.length) return [pickFrom(SAYS.crew, p.id + p.helpers.length), 'team'];
+  if (p.inDesktop && !p.desktopDone) return [pickFrom(SAYS.away, p.id + 'away'), 'trip'];
+  if (busy.has(p.id)) return [pickFrom(SAYS.busy, p.id + p.day), ''];
+  const cls = { needs: 'warn', blocked: 'bad', out: 'off', home: 'off' }[p.status] || '';
+  return [pickFrom(SAYS[p.status] || SAYS.out, p.id + p.status + p.day), cls];
+}
+
+function renderFloor() {
+  const ps = openProjects();
+  const openTodos = ps.reduce((n, p) => n + p.todos.filter(t => !t.done).length, 0);
+  const ideas = ps.reduce((n, p) => n + p.ideas.length, 0);
+  const counts = Object.fromEntries(Object.keys(STATUSES).map(k => [k, allOpen().filter(p => p.status === k).length]));
+  const closed = closedProjects();
+  let legacy = 0;
+  try { legacy = office.projects.length ? 0 : (JSON.parse(localStorage.getItem('agentOffice.v1') || '{}').projects || []).length; } catch (e) {}
+  const peek = freeWorkers().slice(0, 3);
+
+  return `
+    ${legacy ? `<div class="banner"><p>Found ${legacy} cubicle${legacy === 1 ? '' : 's'} from the first version of the office in this browser.</p>
+      <button class="btn primary" data-action="import-local">Move Them In</button></div>` : ''}
+    <a class="burrow" href="#" data-action="go" data-v="boss">
+      <span class="burrow-door" aria-hidden="true">
+        <svg viewBox="0 0 64 72" width="64" height="72" fill="none">
+          <path d="M8 70V26a24 24 0 0 1 48 0v44z" fill="var(--berry)"></path>
+          <path d="M14 70V28a18 18 0 0 1 36 0v42" stroke="var(--berry-bg)" stroke-width="2" opacity=".55"></path>
+          <circle cx="32" cy="26" r="7" fill="var(--mustard-bg)" stroke="var(--mustard)" stroke-width="2"></circle>
+          <circle cx="45" cy="48" r="3" fill="var(--mustard)"></circle>
+          <path d="M2 70h60" stroke="var(--moss)" stroke-width="4" stroke-linecap="round"></path>
+        </svg>
+      </span>
+      <div class="burrow-text"><h2>The Boss's Burrow</h2>
+        ${usage?.plan?.fiveHour?.pct != null ? `<p class="burrow-usage">Claude ${meterHTML(usage.plan.fiveHour.pct)} <b>${usage.plan.fiveHour.pct}%</b> of your 5-hour limit${usage.plan.fiveHour.resetsAt ? ` · ${resetText(usage.plan.fiveHour.resetsAt)}` : ''}</p>` : ''}</div>
+      <span class="knock"><span class="k1">Knock,</span> <span class="k2">knock!</span> <span class="arrow">→</span></span>
+    </a>
+    ${ps.length ? `<div class="chips">${Object.entries(STATUSES).filter(([k]) => counts[k]).map(([k, s]) =>
+      `<span class="chip" style="${statusVars(k)}">${counts[k]} ${s.chip}</span>`).join('')}</div>` : ''}
+    <div class="floor">
+      ${ps.map(cubeHTML).join('')}
+      <button class="vacant" data-action="hire">
+        <span>${peek.length ? `<span class="peek">${peek.map(w => critterImg(w, '', false)).join('')}</span>` : ''}${freeWorkers().length ? `Hire a critter<br><small class="muted">${freeWorkers().length} waiting in the meadow</small>`
+          : `Everyone's at a desk<br><small class="muted">Close a quiet project to free a critter</small>`}</span>
+      </button>
+    </div>
+    ${closed.length ? `<details class="shelf"><summary>Closed projects (${closed.length})</summary>
+      <ul class="closed-list">${closed.map(p => { const w = workerOf(p); return `
+        <li>${critterImg(w, '', false)}<div class="what"><b>${esc(p.name)}</b><span>With ${esc(w.name)} · ${p.day - 1} day${p.day - 1 === 1 ? '' : 's'} · closed ${fmtDate(p.closedAt)}</span></div>
+          <button class="btn small" data-action="open" data-id="${p.id}" data-t="past">Past Shifts</button>
+          <button class="btn small primary" data-action="reopen" data-id="${p.id}">Reopen</button></li>`; }).join('')}</ul></details>` : ''}`;
+}
+
+function cubeHTML(p) {
+  const w = workerOf(p);
+  const s = STATUSES[p.status] || STATUSES.out;
+  const open = p.todos.filter(t => !t.done).length;
+  const asking = askingCount(p.id);
+  const [say, sayCls] = saying(p);
+  return `
+  <article class="cube s-${p.status} ${busy.has(p.id) ? 'busy' : ''} ${asking ? 'asking' : ''}" data-action="open" data-id="${p.id}" style="${plateVars(p)}">
+    <div class="wall"><span class="plate">${esc(p.name)}</span></div>
+    ${p.unread ? '<span class="unread-dot" title="New reply"></span>' : ''}
+    <div class="scene">${critterImg(w)}${seatsOf(p).slice(0, 2).map((m, i) =>
+      `<img class="mate-pic ${i ? 'right' : 'left'} ${busy.has(m.id) ? 'busy' : ''}" src="/assets/critters/${esc(workerOf(m).critter)}.png" alt="">`).join('')}<span class="say ${sayCls} ${['break', 'out', 'home'].includes(p.status) && !busy.has(p.id) && !asking ? 'thought' : ''}">${esc(say)}</span></div>
+    <div class="desk"><span class="desk-name">${esc(w.name)}</span></div>
+    <div class="info">
+      <div class="pills"><span class="pill" style="${statusVars(p.status)}">${s.label}</span>${longShift(p)}</div>
+      <div class="stages">${STAGES.map((st, i) =>
+        `<button class="dot ${i < p.stage ? 'on' : i === p.stage ? 'now' : ''}" title="Mark as ${st}" aria-label="Mark as ${st}" data-action="stage" data-id="${p.id}" data-i="${i}"></button>`).join('')}<span>${STAGES[p.stage]}</span></div>
+      <p class="task">${p.task.trim() ? esc(p.task) : `<em>${p.folder ? 'No task set for today' : 'No project folder yet'}</em>`}</p>
+      ${seatsOf(p).length ? `<div class="mates">${seatsOf(p).map(m => { const mw = workerOf(m), ms = STATUSES[m.status] || STATUSES.out, n = askingCount(m.id); return `
+        <button class="mate" data-action="open" data-id="${m.id}" title="${esc(mw.name)}: ${esc(m.task || 'desk mate')}">${critterImg(mw, '', false)}<b>${esc(mw.name)}</b>
+          <span class="pill" style="${statusVars(m.status)}">${n ? 'May I?' : busy.has(m.id) ? 'Working' : ms.label}</span>${m.unread ? '<i class="mate-dot" aria-label="New reply"></i>' : ''}</button>`; }).join('')}</div>` : ''}
+      <footer><span class="grow">${ago(p.updatedAt)}</span>
+        ${p.previewLive ? `<button class="btn small" data-action="preview" data-id="${p.id}" title="${esc(p.preview.url)}">Open Preview</button>` : ''}
+        ${newDayButton(p)}</footer>
+    </div>
+  </article>`;
+}
+
+// A shift whose chat has grown big: every message re-sends the whole chat, so a fresh shift is cheaper.
+const LONG_SHIFT = 150e3;
+function longShift(p) {
+  const ctx = !p.closed && p.sessionId && usage?.projects.find(x => x.id === p.id)?.context;
+  if (!ctx || ctx < LONG_SHIFT) return '';
+  return `<span class="pill long-shift" title="This chat is ${fmtTok(ctx)} tokens. Every message re-sends the whole chat, so each one costs more. Start a New Shift at a good stopping point.">Long Shift · ${fmtTok(ctx)}</span>`;
+}
+
+function newDayButton(p) {
+  return p.wrapping
+    ? `<button class="btn small" data-action="new-day-now" data-id="${p.id}" title="Skip the wrap-up and start the new day now">Wrapping Up… Skip</button>`
+    : `<button class="btn small" data-action="new-day" data-id="${p.id}" title="Wrap up this shift, then start a fresh chat">New Shift</button>`;
+}
+
+/* ---------- Meadow (hiring pool) ---------- */
+function renderMeadow() {
+  const free = freeWorkers();
+  return `
+    <div class="page-head">
+      <button class="btn" data-action="go" data-v="floor">← The Floor</button>
+      <div><h2>The Meadow</h2></div>
+    </div>
+    ${free.length ? '' : quietHTML()}
+    <div class="meadow">${office.workers.map(w => {
+      const at = hiredAt(w.id);
+      const past = office.projects.filter(p => p.closed && p.workerId === w.id).map(p => p.name);
+      return `<div class="critter-card ${at ? 'hired' : ''}">
+        ${critterImg(w, '')}
+        <input class="name" data-worker="${w.id}" value="${esc(w.name)}" aria-label="Name for the ${esc(w.animal)}">
+        <div class="kind">${esc(animalOf(w))}</div>
+        ${w.bio ? `<div class="bio">${esc(w.bio)}</div>` : ''}
+        <div class="resume">${past.length ? `Worked on ${esc(past.slice(0, 3).join(', '))}${past.length > 3 ? '…' : ''}` : ''}</div>
+        ${at ? `<button class="btn small" data-action="open" data-id="${at.id}">At ${esc(at.name)}</button>`
+             : `<button class="btn small accent" data-action="hire" data-w="${w.id}">Hire ${esc(w.name)}</button>`}
+      </div>`; }).join('')}</div>`;
+}
+
+function renderHire() {
+  const m = $('#modal');
+  if (!hire && needsSetup()) return renderSetup(m);
+  if (!hire) { m.classList.remove('open'); m.innerHTML = ''; return; }
+  const p = hire.projectId && find(hire.projectId);
+  const free = freeWorkers();
+  const chosen = findWorker(hire.workerId);
+  m.innerHTML = `<div class="sheet">
+    <h2 id="modalTitle">${hire.mode === 'reopen' ? `Reopen ${esc(p?.name)}` : hire.mode === 'deskmate' ? `Add a desk mate to ${esc(p?.name)}` : 'Hire a critter'}</h2>
+    <p class="sub">${hire.mode === 'reopen' ? 'Pick who comes back to this cubicle.'
+      : hire.mode === 'deskmate' ? `They work on ${esc(p?.name)} at the same time as ${esc(workerOf(p).name)}, with their own chat. If the project uses git, they get their own copy so nobody overwrites anybody; you bring their work back with a button.`
+      : 'Pick a critter from the meadow and give them a project.'}</p>
+    ${free.length ? `<div class="pick">${free.map(w => `<button data-action="pick" data-w="${w.id}" class="${w.id === hire.workerId ? 'on' : ''}" aria-pressed="${w.id === hire.workerId}">
+      ${critterImg(w, '', false)}${esc(w.name)}<small>${esc(animalOf(w))}</small></button>`).join('')}</div>`
+      : quietHTML()}
+    ${hire.mode === 'new' ? `
+      <label class="label" for="h-name">Project name</label>
+      <input class="field" id="h-name" value="${esc(hire.name)}" placeholder="Website redesign">
+      <div class="label">Project folder</div>
+      <label class="radio"><input type="radio" name="h-mode" data-action="folder-mode" data-v="new" ${hire.newFolder ? 'checked' : ''}>
+        <span>Make a new folder<small class="path" id="h-newpath">${esc(newFolderPreview(hire.name))}</small></span></label>
+      <label class="radio"><input type="radio" name="h-mode" data-action="folder-mode" data-v="existing" ${hire.newFolder ? '' : 'checked'}>
+        <span>Use a folder I already have</span></label>
+      <input class="field" id="h-folder" list="hireFolders" value="${esc(hire.folder)}" placeholder="${esc(projectsRoot())}/…" ${hire.newFolder ? 'hidden' : ''} aria-label="Existing project folder">
+      <datalist id="hireFolders">${folders.map(f => `<option value="${esc(f)}">`).join('')}</datalist>` : ''}
+    ${hire.mode === 'deskmate' ? `
+      <label class="label" for="h-task">What should they work on? <span class="muted">(optional, becomes their first message)</span></label>
+      <textarea class="field" id="h-task" rows="3" placeholder="e.g. Write the tests for the new contact form">${esc(hire.task || '')}</textarea>` : ''}
+    <div class="actions">
+      <button class="btn" data-action="hire-cancel">Cancel</button>
+      <button class="btn accent" data-action="hire-go" ${chosen ? '' : 'disabled'}>${chosen ? (hire.mode === 'reopen' ? `Bring ${esc(chosen.name)} In` : hire.mode === 'deskmate' ? `Add ${esc(chosen.name)}` : `Hire ${esc(chosen.name)}`) : 'Pick a critter'}</button>
+    </div></div>`;
+  m.classList.add('open');
+}
+
+const safeFolderName = n => String(n || '').replace(/[\/:]+/g, '-').replace(/\s+/g, ' ').trim().replace(/^\.+/, '');
+// Settings → You: the owner's name (it names the "For …" and "From …" folders) and where projects live.
+const ownerName = () => String(office.settings?.name || '').replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+const forFolder = () => `For ${ownerName() || 'the Boss'}`;
+const fromFolder = () => `From ${ownerName() || 'the Boss'}`;
+const projectsRoot = () => office.settings?.projectsRoot || '~/Claude/Projects';
+const nameHint = () => `Critters call you this and leave files for you in a "${esc(forFolder())}" folder. Files you send go in "${esc(fromFolder())}".`;
+function newFolderPreview(name) {
+  const n = safeFolderName(name);
+  return n ? `${projectsRoot()}/${n}` : 'Type a project name first';
+}
+// First run: a welcome sheet asks for the owner's name and where projects live.
+const needsSetup = () => office.settings && !office.settings.setupDone && (!SHOTTING || SHOT.has('setup'));
+function renderSetup(m) {
+  if ($('#setup-name')) return;  // already showing: keep what they've typed
+  const fox = office.workers.find(w => w.critter === 'forest-fox') || office.workers[0];
+  m.innerHTML = `<div class="sheet setup" role="dialog" aria-labelledby="setupTitle">
+    ${fox ? critterImg(fox, '', false) : ''}
+    <h2 id="setupTitle">Welcome to Agent Office</h2>
+    <p class="sub">Two quick things and your office is ready. You can change both later in Settings.</p>
+    <label class="label" for="setup-name">What should the critters call you?</label>
+    <input class="field" id="setup-name" placeholder="Your first name" maxlength="40" autocomplete="given-name">
+    <label class="label" for="setup-root">Where do your projects live?</label>
+    <input class="field" id="setup-root" value="${esc(projectsRoot())}" autocomplete="off">
+    <p class="muted hint">Each project is a folder in here. If this folder doesn't exist yet, the office makes it.</p>
+    <div class="actions"><button class="btn primary" data-action="setup-go">Open the Office</button></div>
+  </div>`;
+  m.classList.add('open');
+  setTimeout(() => $('#setup-name')?.focus(), 0);
+}
+async function finishSetup() {
+  const btn = $('[data-action="setup-go"]');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api('PUT', '/api/settings', { name: $('#setup-name').value.trim(), projectsRoot: $('#setup-root').value.trim(), createRoot: true, setupDone: true });
+    office.settings = r.settings;
+    $('#modal').classList.remove('open'); $('#modal').innerHTML = '';
+    render();
+    toast(ownerName() ? `Welcome, ${ownerName()}! Hire a critter to open your first cubicle.` : 'Welcome! Hire a critter to open your first cubicle.');
+  } catch { if (btn) btn.disabled = false; }
+}
+async function openHire(opts) {
+  hire = { mode: 'new', workerId: null, name: '', folder: '', newFolder: true, ...opts };
+  if (!hire.workerId) hire.workerId = freeWorkers()[0]?.id || null;
+  renderHire();
+  if (!folders.length) {
+    folders = (await api('GET', '/api/folders').catch(() => ({ folders: [] }))).folders;
+    if (hire) { const n = $('#h-name')?.value, f = $('#h-folder')?.value; if (n !== undefined) hire.name = n; if (f !== undefined) hire.folder = f; renderHire(); }
+  }
+  $('#h-name')?.focus();
+}
+
+/* ---------- Settings ---------- */
+function renderSettings() {
+  const pref = office.settings?.theme || 'system';
+  const ps = openProjects();
+  return `
+    <div class="page-head">
+      <button class="btn" data-action="go" data-v="floor">← The Floor</button>
+      <div><h2>Settings</h2></div>
+    </div>
+    <div class="settings">
+      <section class="panel you">
+        <h3>You</h3>
+        <label class="label" for="s-name">Your name</label>
+        <input class="field" id="s-name" data-setting="name" value="${esc(office.settings?.name || '')}" placeholder="the Boss" maxlength="40" autocomplete="off">
+        <p class="muted" id="s-name-hint">${nameHint()}</p>
+        <label class="label" for="s-root">Where your projects live</label>
+        <input class="field" id="s-root" data-setting="projectsRoot" value="${esc(office.settings?.projectsRoot || '')}" placeholder="~/Claude/Projects" autocomplete="off">
+        <p class="muted">New project folders go here.</p>
+      </section>
+      <section class="panel">
+        <h3>Appearance</h3>
+        <div class="themes">${THEMES.map(([k, l]) => `
+          <button class="${pref === k ? 'on' : ''}" data-action="theme" data-v="${k}" aria-pressed="${pref === k}">
+            <span class="swatch ${k}"><i style="background:#587F3E"></i><i style="background:#BA5329"></i><i style="background:#963A74"></i><i style="background:#E3A92E"></i></span>${l}</button>`).join('')}</div>
+      </section>
+      <section class="panel alerts">
+        <h3>Alerts</h3>
+        ${alertsHTML()}
+      </section>
+      <section class="panel critters-panel">
+        <h3>Critters</h3>
+        ${ps.length ? `<ul class="brains">${ps.flatMap(p => [p, ...seatsOf(p)]).map(p => { const w = workerOf(p); return `
+          <li>${critterImg(w, '', false)}
+            <div class="what"><b>${esc(p.name)}${p.deskOf ? ' · desk mate' : ''}</b><span>${esc(w.name)} the ${esc(animalOf(w))}</span>${w.bio ? `<span class="bio">${esc(w.bio)}</span>` : ''}</div>
+            <div class="pickers">
+              <label class="muted" for="model-${p.id}">Model</label>
+              <select class="field" id="model-${p.id}" data-model="${p.id}">${MODELS.map(([id, label]) =>
+                `<option value="${id}" ${(p.model || '') === id ? 'selected' : ''}>${label}</option>`).join('')}</select>
+              <label class="muted" for="effort-${p.id}">Effort</label>
+              <select class="field" id="effort-${p.id}" data-effort="${p.id}">${EFFORTS.map(([k, l]) =>
+                `<option value="${k}" ${(p.effort || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <label class="muted" for="voice-${p.id}">Personality</label>
+              <select class="field" id="voice-${p.id}" data-voice="${w.id}">${VOICES.map(([k, l]) =>
+                `<option value="${k}" ${(w.personality || 'light') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <label class="muted" for="free-${p.id}">Freedom</label>
+              <select class="field" id="free-${p.id}" data-freedom="${p.id}">${APPROVALS.map(([k]) =>
+                `<option value="${k}" ${(p.permissionMode || 'default') === k ? 'selected' : ''}>${approvalName(k)}</option>`).join('')}</select>
+            </div>
+          </li>`; }).join('')}</ul>` : '<p class="muted">No cubicles yet. Hire a critter first.</p>'}
+      </section>
+      <section class="panel guardrails">
+        <h3>Guardrails</h3>
+        <div class="guard-cols">
+          <div><h4>Never, in any freedom level</h4>
+            <ul>
+              <li>Delete core Mac system files</li>
+              <li>Delete the whole disk or home folder</li>
+            </ul></div>
+          <div><h4>Always ask you first</h4>
+            <ul>
+              <li>Changing core Mac files, apps or system settings</li>
+              <li>Anything touching passwords, keys, the keychain or browser data</li>
+              <li>Admin (sudo) commands, shutting down, disks, background services</li>
+              <li>Changing the Agent Office itself or Claude's own settings</li>
+              <li>Changing files outside their own project folder</li>
+              <li>Deleting folders, pushing code, publishing, or installing software</li>
+              <li>Running scripts straight from the internet</li>
+            </ul></div>
+          <div><h4>Recently blocked</h4>
+            ${guardLog.length ? `<ul class="guard-log">${guardLog.slice(0, 8).map(g => `<li><b>${esc(g.worker)}</b> · ${esc(g.reason.replace('Guardrail: ', ''))}<small>${esc(g.detail)} · ${ago(g.at)}</small></li>`).join('')}</ul>`
+              : '<p class="muted">Nothing blocked since the office last started.</p>'}</div>
+        </div>
+      </section>
+    </div>`;
+}
+
+// "May I?" alerts: Mac notifications in the app, browser notifications in a browser tab.
+function alertsHTML() {
+  if (window.webkit?.messageHandlers?.office) return `
+    <p>When a critter asks "May I?" and the office isn't in front, a Mac notification pops up with Allow and Not Now buttons.</p>
+    <p class="muted">To change how they look or sound: System Settings › Notifications › Agent Office.</p>
+    <button class="btn small" data-action="test-alert">Send a Test Alert</button>`;
+  if (!('Notification' in window)) return '<p class="muted">This browser can\'t show alerts. Use the Agent Office app for Mac notifications.</p>';
+  if (Notification.permission === 'granted') return '<p>Alerts are on. This browser pops one up when a critter asks "May I?" and the office tab isn\'t in front.</p>';
+  if (Notification.permission === 'denied') return '<p class="muted">This browser blocked alerts. Allow notifications for this page in the browser\'s site settings, then reload.</p>';
+  return `<p>Get a pop-up when a critter asks "May I?" and the office tab isn't in front.</p>
+    <button class="btn small accent" data-action="enable-alerts">Turn On Alerts</button>`;
+}
+
+/* ---------- Boss's burrow ---------- */
+function renderBoss() {
+  const ps = openProjects();
+  return `
+    <div class="page-head">
+      <button class="btn" data-action="go" data-v="floor">← The Floor</button>
+      <div><h2>The Boss's Burrow</h2></div>
+    </div>
+    <section class="whiteboard" aria-label="Whiteboard">
+      <div class="wb-head"><h3>The Whiteboard</h3><button class="btn small" data-action="add-sticky">+ Add a Note</button></div>
+      <div class="stickies">${(office.stickies || []).map((n, i) => `
+        <div class="sticky c-${esc(n.color)}" style="--tilt:${((Math.abs(hash(n.id)) % 7) - 3) * 0.8}deg">
+          <textarea data-sticky="${esc(n.id)}" aria-label="Note ${i + 1}" placeholder="Write something…">${esc(n.text)}</textarea>
+          <div class="sticky-tools">
+            <button class="mini" data-action="sticky-color" data-s="${esc(n.id)}" aria-label="Change note color"><span class="dot-swatch"></span></button>
+            <button class="mini" data-action="del-sticky" data-s="${esc(n.id)}" aria-label="Remove note">✕</button>
+          </div>
+        </div>`).join('') || '<p class="muted">A clean board. Add a note for anything big-picture.</p>'}</div>
+    </section>
+    ${usagePanel()}
+    ${ps.length ? '' : '<p class="empty">No one is hired yet. Hire a critter from the meadow.</p>'}
+    <div class="boss-grid">${ps.map(folderHTML).join('')}</div>`;
+}
+const OWNERS = ['critter', 'boss', 'together'];
+const ownerLabel = (o, w) => o === 'boss' ? 'You' : o === 'together' ? 'Together' : o === 'critter' ? w.name : 'Not sorted';
+function todoItem(p, t, w) {
+  return `
+    <li class="${t.done ? 'done' : ''}">
+      <input type="checkbox" ${t.done ? 'checked' : ''} data-action="toggle-todo" data-id="${p.id}" data-t="${t.id}" aria-label="Done">
+      <span class="txt" title="${esc(t.text)}">${esc(showTodo(t.text))}${t.by ? ` <small class="by">added by ${esc(t.by)}</small>` : ''}</span>
+      <button class="owner o-${t.owner || 'none'}" data-action="todo-owner" data-id="${p.id}" data-t="${t.id}" title="Who is this for? Click to change">${esc(ownerLabel(t.owner, w))}</button>
+      <button class="mini" data-action="del-todo" data-id="${p.id}" data-t="${t.id}" aria-label="Delete to-do">✕</button>
+    </li>`;
+}
+// To-do groups you've folded shut stay shut (remembered in this browser).
+const folded = new Set();
+try { JSON.parse(localStorage.getItem('agentOffice.folded') || '[]').forEach(k => folded.add(k)); } catch (e) {}
+document.addEventListener('toggle', e => {
+  const k = e.target.dataset?.fold;
+  if (!k) return;
+  e.target.open ? folded.delete(k) : folded.add(k);
+  try { localStorage.setItem('agentOffice.folded', JSON.stringify([...folded])); } catch (err) {}
+}, true);
+function todoList(p) {
+  const w = workerOf(p);
+  if (!p.todos.some(t => !t.done)) return '<div class="empty-note">Nothing on the list.</div>';
+  const groups = [['critter', `For ${w.name}`], ['together', 'Together'], ['boss', 'For You'], [null, 'Not Sorted Yet']];
+  return groups.map(([o, label]) => {
+    const list = p.todos.filter(t => !t.done && (t.owner || null) === o);
+    if (!list.length) return '';
+    const key = `${p.id}:${o || 'none'}`;
+    return `<details class="todo-group g-${o || 'none'}" data-fold="${key}" ${folded.has(key) ? '' : 'open'}>
+      <summary title="Show or hide this list"><h5><svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"></path></svg>${esc(label)} <span>${list.length}</span></h5></summary>
+      <ul class="list">${list.map(t => todoItem(p, t, w)).join('')}</ul></details>`;
+  }).join('');
+}
+function todoForm(p) {
+  const w = workerOf(p);
+  return `<form class="add todo-add" data-form="todo" data-id="${p.id}">
+    <input class="field" placeholder="Add a to-do…" aria-label="New to-do">
+    <fieldset class="owner-pick"><legend class="sr">Who is it for?</legend>
+      ${OWNERS.map((o, i) => `<label><input type="radio" name="owner-${p.id}" value="${o}" ${i === 0 ? 'checked' : ''}><span>${esc(ownerLabel(o, w))}</span></label>`).join('')}
+    </fieldset>
+    <button class="btn small">Add</button></form>`;
+}
+function folderHTML(p) {
+  const w = workerOf(p);
+  const s = STATUSES[p.status] || STATUSES.out;
+  const open = p.todos.filter(t => !t.done).length;
+  const done = p.todos.length - open;
+  return `
+  <article class="folder" style="${plateVars(p)}">
+    <header data-action="open" data-id="${p.id}" title="Open cubicle">
+      ${critterImg(w, '', false)}
+      <div class="names"><b>${esc(w.name)}</b><span>${esc(p.name)} · Shift ${p.day} · ${STAGES[p.stage]}</span></div>
+      <span class="pill" style="${statusVars(p.status)}">${s.label}</span>
+    </header>
+    <div class="cols">
+      <div>
+        <h4><span>To-dos for ${esc(w.name)} (${open})</span></h4>
+        ${todoList(p)}
+        ${todoForm(p)}
+      </div>
+      <div class="ideas">
+        <h4><span>Brainstorm: ${esc(p.name)} (${p.ideas.length})</span></h4>
+        ${p.ideas.length ? `<ul class="list">${p.ideas.map(i => `
+          <li><span class="txt">${esc(i.text)}</span>
+            <button class="mini" data-action="promote" data-id="${p.id}" data-t="${i.id}" title="Turn into a to-do">→ to-do</button>
+            <button class="mini" data-action="del-idea" data-id="${p.id}" data-t="${i.id}" aria-label="Delete idea">✕</button></li>`).join('')}</ul>`
+          : '<div class="empty-note">No ideas yet.</div>'}
+        <form class="add" data-form="idea" data-id="${p.id}"><input class="field" placeholder="Drop an idea…" aria-label="New idea"><button class="btn small">Add</button></form>
+      </div>
+    </div>
+  </article>`;
+}
+
+/* ---------- Approvals ---------- */
+const waitingFor = id => [...perms.values()].filter(x => x.projectId === id);
+function askQuestion(r, p) {
+  const file = r.input?.file_path ? shortPath(r.input.file_path, p?.folder).split('/').pop() : '';
+  switch (r.toolName) {
+    case 'Bash': return 'May I run a command?';
+    case 'Edit': case 'MultiEdit': case 'NotebookEdit': return `May I edit ${file || 'a file'}?`;
+    case 'Write': return `May I create ${file || 'a file'}?`;
+    case 'WebFetch': return 'May I open a web page?';
+    case 'WebSearch': return 'May I search the web?';
+    case 'ExitPlanMode': return 'May I build this plan?';
+  }
+  if (r.title) return r.title.replace(/^Claude (wants|would like) to /i, 'May I ').replace(/[.?]?$/, '?');
+  return `May I use ${toolName(r.toolName)}?`;
+}
+function planHTML(r) {
+  const p = find(r.projectId), w = workerOf(p);
+  return `
+  <div class="ask plan-ask" data-req="${r.reqId}">
+    <div class="ask-head">
+      <div class="ask-av">${critterImg(w, '', false)}<span>Plan</span></div>
+      <div><div class="ask-who">${esc(w.name)} · ${esc(p?.name || '')}</div><div class="ask-q">May I build this plan?</div></div>
+    </div>
+    <div class="plan-body md">${md(r.plan || '(No plan text.)')}</div>
+    <input class="ask-instead" data-why="${r.reqId}" placeholder="Want changes? Tell ${esc(w.name)} here, then press Keep Planning" aria-label="Changes to the plan">
+    <div class="ask-actions">
+      <button class="ask-no" data-action="perm" data-req="${r.reqId}" data-d="deny">Keep Planning</button>
+      <span class="sp"></span>
+      <button class="ask-yes" data-action="perm" data-req="${r.reqId}" data-d="allow"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"></path></svg>Approve and Build</button>
+    </div>
+  </div>`;
+}
+function permHTML(r) {
+  if (r.toolName === 'ExitPlanMode') return planHTML(r);
+  const p = find(r.projectId);
+  const w = workerOf(p);
+  const why = r.input?.description || r.description || (r.toolName === 'WebFetch' ? r.input?.url : r.toolName === 'WebSearch' ? r.input?.query : '');
+  const peek = r.toolName === 'Bash' ? 'See the exact command' : EDIT_TOOLS.includes(r.toolName) ? 'See the change' : 'See the details';
+  const where = r.input?.file_path ? `<div class="path">${esc(shortPath(r.input.file_path, p?.folder))}</div>` : '';
+  return `
+  <div class="ask" data-req="${r.reqId}">
+    <div class="ask-head">
+      <div class="ask-av">${critterImg(w, '', false)}<span>May I?</span></div>
+      <div><div class="ask-who">${esc(w.name)} · ${esc(p?.name || '')}</div><div class="ask-q">${esc(askQuestion(r, p))}</div></div>
+    </div>
+    ${why ? `<p class="ask-why">${esc(why)}</p>` : ''}
+    ${waitingFor(r.projectId).length > 1 ? `<div class="ask-more-waiting">+ ${waitingFor(r.projectId).length - 1} more waiting from ${esc(w.name)}</div>` : ''}
+    <details class="ask-more"><summary>${peek}</summary>${where}${toolPreview(r.toolName, r.input)}</details>
+    <input class="ask-instead" data-why="${r.reqId}" placeholder="Rather they did something else? Tell ${esc(w.name)} here, then tap Not now" aria-label="Tell ${esc(w.name)} what to do instead">
+    <div class="ask-actions">
+      <button class="ask-no" data-action="perm" data-req="${r.reqId}" data-d="deny">Not Now</button>
+      <span class="sp"></span>
+      ${waitingFor(r.projectId).length > 1 && waitingFor(r.projectId)[0].reqId === r.reqId
+        ? `<button class="ask-always" data-action="perm-all" data-id="${r.projectId}">Allow All ${waitingFor(r.projectId).length}</button>` : ''}
+      ${r.canAlways ? `<button class="ask-always" data-action="perm" data-req="${r.reqId}" data-d="always" title="Don't ask again for this kind of thing in this chat">Always Allow</button>` : ''}
+      <button class="ask-yes" data-action="perm" data-req="${r.reqId}" data-d="allow"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"></path></svg>Allow</button>
+    </div>
+  </div>`;
+}
+function firstPerCritter(list) {
+  const seen = new Set();
+  return list.filter(r => !seen.has(r.projectId) && seen.add(r.projectId));
+}
+function renderTray() {
+  const list = firstPerCritter([...perms.values()].filter(r => !(drawer.id === r.projectId && drawer.tab === 'chat')));
+  $('#tray').innerHTML = list.map(permHTML).join('');
+  document.title = perms.size ? `(${perms.size}) May I? · Agent Office` : 'Agent Office';
+  window.webkit?.messageHandlers?.office?.postMessage({ kind: 'badge', count: perms.size });
+}
+
+/* ---------- Drawer ---------- */
+function openDrawer(id, tab) {
+  const p = find(id);
+  if (!p) return;
+  tab = tab || (p.closed ? 'past' : 'chat');
+  const same = drawer.id === id;
+  drawer = { id, tab };
+  if (!same) { chat = null; pastChat = null; sessionsList = null; changes = null; }
+  if (p.unread && !SHOTTING) patch(p, { unread: false });
+  document.body.classList.add('drawer-open');
+  renderDrawer(true);
+  if ((tab === 'chat' || tab === 'log') && !chat) loadChat(p);
+  if (tab === 'changes') loadChanges(p);
+  if (tab === 'details') loadFolders();
+  render();
+}
+function closeDrawer() {
+  drawer = { id: null, tab: 'chat' };
+  chat = null; pastChat = null;
+  document.body.classList.remove('drawer-open');
+  render();
+}
+function loadFolders() {
+  if (folders.length) return;
+  api('GET', '/api/folders').then(r => { folders = r.folders; if (drawer.tab === 'details') renderDrawer(true); }).catch(() => {});
+}
+async function loadChat(p) {
+  chat = { id: p.id, items: [], loading: true, buffer: [] };
+  renderChatLog();
+  if (!p.sessionId) { chat.loading = false; renderChatLog(); return; }
+  try {
+    const { items } = await api('GET', `/api/chat?session=${encodeURIComponent(p.sessionId)}&dir=${encodeURIComponent(p.folder)}`);
+    if (!chat || chat.id !== p.id) return;
+    const seen = new Set(items.map(itemKey));
+    chat.items = items.concat(chat.buffer.filter(x => !seen.has(itemKey(x))));
+  } catch (e) {}
+  if (chat) { chat.loading = false; chat.buffer = []; renderChatLog(true); }
+}
+const itemKey = x => x.kind + ':' + (x.id || x.toolUseId || (x.text || '').slice(0, 200));
+
+// The cubicle's seats: the main critter plus any desk mates, to hop between chats.
+function seatRow(p) {
+  const home = homeOf(p), seats = [home, ...seatsOf(home)];
+  if (seats.length < 2 || home.closed) return '';
+  return `<div class="seat-row">${seats.map(x => { const xw = workerOf(x); return `<button class="${x.id === p.id ? 'on' : ''}" data-action="open" data-id="${x.id}" aria-pressed="${x.id === p.id}">
+    ${critterImg(xw, '', false)}${esc(xw.name)}${x.deskOf ? '' : ' (main)'}${askingCount(x.id) ? ' · May I?' : x.unread ? ' ·' : ''}</button>`; }).join('')}</div>`;
+}
+function drawerHead(p) {
+  const w = workerOf(p);
+  const s = STATUSES[p.status] || STATUSES.out;
+  const mate = !!p.deskOf;
+  return `
+    <div class="d-top">
+      ${critterImg(w, '')}
+      <div class="names"><b>${esc(p.name)}</b>
+        <span>${esc(w.name)} the ${esc(animalOf(w))}${mate ? ` · Desk mate${p.shared ? ' (shared folder)' : ''}` : ''} · Shift ${p.day} · ${STAGES[p.stage]}${p.folder ? ` · <span class="path" title="${esc(p.folder)}">${esc(mate && p.branch ? p.branch : folderName(p.folder))}</span>` : ''}</span></div>
+      ${p.closed ? '<span class="pill" style="--c:var(--off);--c-bg:var(--off-bg)">Closed</span>'
+        : `${longShift(p)}<span class="pill" style="${statusVars(p.status)}">${busy.has(p.id) ? 'Working…' : s.label}</span>`}
+      <button class="x" data-action="close-drawer" aria-label="Close">✕</button>
+    </div>
+    <div class="d-actions">
+      ${p.closed ? `<button class="btn small primary" data-action="reopen" data-id="${p.id}">Reopen Project</button>` : `
+        ${p.sessionId ? `<button class="btn small" data-action="open-desktop" data-id="${p.id}" title="See this chat with the browser pane, diffs, artifacts and simulator">Open in Claude Desktop</button>` : ''}
+        ${p.previewLive ? `<button class="btn small" data-action="preview" data-id="${p.id}" title="${esc(p.preview.url)}">Open Preview</button>` : ''}
+        ${p.worktree ? `<button class="btn small accent" data-action="bring-back" data-id="${p.id}" title="Put ${esc(w.name)}'s saved work into the main project">Bring Work Back</button>` : ''}
+        ${newDayButton(p)}
+        ${p.folder ? `<button class="btn small" data-action="open-folder" data-id="${p.id}" title="Show the project folder in Finder">Open Folder</button>` : ''}
+        ${!mate && p.folder ? `<button class="btn small" data-action="add-deskmate" data-id="${p.id}" title="Another critter works on this project at the same time, in their own copy">Add a Desk Mate</button>` : ''}
+        ${mate ? `<button class="btn small warn" data-action="send-home" data-id="${p.id}">Send Home</button>` : ''}`}
+    </div>
+    ${seatRow(p)}
+    ${p.closed ? `<div class="note-bar">Closed ${fmtDate(p.closedAt)}. ${esc(w.name)} is back in the meadow.</div>` : ''}
+    ${!p.closed && p.inDesktop ? `<div class="note-bar">${
+      p.desktopDone ? `${esc(w.name)} finished in the Claude desktop app. Reply here to carry on. Their desktop work is part of this chat now.`
+      : p.handoff ? `${esc(w.name)} moved this chat to the Claude desktop app for ${esc(p.handoff.need)}. In the desktop app, type <b>go</b>. When it's done, come back here and reply.`
+      : `This chat is open in the Claude desktop app. Keep chatting there, or send a message here to bring it back. Only type in one place at a time.`}</div>` : ''}
+    ${!p.closed && !p.folder ? `<div class="note-bar">Pick this project's folder under Details so ${esc(w.name)} can start working.</div>` : ''}
+    ${!p.closed && p.planning ? `<div class="note-bar">${esc(w.name)} is planning. Nothing in the project changes until you approve the plan.</div>` : ''}`;
+}
+function drawerTabs(p) {
+  const tabs = p.closed ? [['past', `Past Shifts (${p.history.length})`], ['details', 'Details']]
+    : [['chat', 'Chat'], ['todos', `To-Dos (${homeOf(p).todos.filter(t => !t.done).length})`], ['details', 'Details'], ['changes', 'Changes'], ['past', `Past Shifts (${p.history.length})`], ['log', 'Work Log']];
+  return tabs.map(([k, l]) => `<button class="tab ${drawer.tab === k ? 'on' : ''}" data-action="tab" data-t="${k}">${l}</button>`).join('');
+}
+function renderDrawer(full) {
+  const p = drawer.id && find(drawer.id);
+  if (!p) { if (drawer.id) closeDrawer(); return; }
+  if (p.closed && ['chat', 'changes', 'log'].includes(drawer.tab)) { drawer.tab = 'past'; full = true; }
+  $('#dHead').innerHTML = drawerHead(p);
+  $('#dTabs').innerHTML = drawerTabs(p);
+  const editing = $('#dBody').contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (drawer.tab === 'chat' || drawer.tab === 'log') {
+    const isChat = drawer.tab === 'chat';
+    if (full) {
+      $('#dBody').innerHTML = `<div class="${isChat ? 'thread' : 'chat'}" id="chatLog"></div>`;
+      renderChatLog(true);
+      if (isChat) renderComposer(p); else $('#dFoot').innerHTML = '';
+    } else { renderChatLog(); if (isChat) updateComposer(p); }
+  } else {
+    if (full) $('#dFoot').innerHTML = '';
+    if (full || !editing) {
+      const scroll = $('#dBody').scrollTop;
+      $('#dBody').innerHTML = drawer.tab === 'details' ? (p.deskOf ? mateDetailsHTML(p) : detailsHTML(p)) : drawer.tab === 'todos' ? todosTabHTML(homeOf(p))
+        : drawer.tab === 'changes' ? changesHTML(p) : pastHTML(p);
+      if (!full) $('#dBody').scrollTop = scroll;
+    }
+  }
+  if (pendingFocus) { $(pendingFocus)?.focus(); pendingFocus = null; }
+}
+
+const photosHTML = imgs => imgs?.length ? `<div class="photos">${imgs.map(src => `<img src="${src}" alt="Photo you sent">`).join('')}</div>` : '';
+const filesHTML = names => names?.length ? `<div class="photos">${names.map(n => `<span class="file-chip sent">${FILE_ICON}<span>${esc(n)}</span></span>`).join('')}</div>` : '';
+function chatItemsHTML(items, p, live) {
+  const results = {};
+  for (const x of items) if (x.kind === 'result') results[x.toolUseId] = x;
+  const out = [];
+  for (const x of items) {
+    if (x.kind === 'user') out.push(`${photosHTML(x.images)}${filesHTML(x.files)}${x.text ? `<div class="msg me">${md(x.text)}</div>` : ''}`);
+    else if (x.kind === 'assistant') out.push(`<div class="msg them">${md(x.text)}</div>`);
+    else if (x.kind === 'system') out.push(`<div class="sys">${esc(x.text)}</div>`);
+    else if (x.kind === 'done' && x.error) out.push(`<div class="sys err">Stopped: ${esc(x.error)}</div>`);
+    else if (x.kind === 'tool') {
+      const r = results[x.id];
+      const state = r ? (r.isError ? '✗' : '✓') : (live ? '<span class="dots"><i></i><i></i><i></i></span>' : '');
+      const isEdit = EDIT_TOOLS.includes(x.name);
+      out.push(`<details class="tool ${r?.isError ? 'err' : ''}" ${isEdit ? 'open' : ''}>
+        <summary><span class="what"><b>${esc(toolName(x.name))}</b> ${toolSummary(x.name, x.input, p.folder)}</span><span>${state}</span></summary>
+        <div class="tbody">${isEdit || x.name === 'Bash' ? toolPreview(x.name, x.input) : ''}
+          ${r && r.text && !(isEdit && !r.isError) ? `<pre class="out">${esc(r.text)}</pre>` : ''}
+          ${r ? (r.images || []).map(src => `<img src="${src}" alt="Screenshot from ${esc(toolName(x.name))}">`).join('') : ''}
+          ${!isEdit && x.name !== 'Bash' && !r ? toolPreview(x.name, x.input) : ''}</div>
+      </details>`);
+    }
+  }
+  return out.join('');
+}
+// Chat tab: only what was said. Each request shows the critter's final reply;
+// the step-by-step narration and tool calls live in the Work log tab.
+const QUIET_TOOLS = /^(mcp__office__|TodoWrite$)/;
+function threadHTML(items, p, working, { undo = false } = {}) {
+  const w = workerOf(p);
+  const turns = [];
+  let cur = { user: null, items: [] };
+  for (const x of items) {
+    if (x.kind === 'user') { if (cur.user || cur.items.length) turns.push(cur); cur = { user: x, items: [] }; }
+    else cur.items.push(x);
+  }
+  if (cur.user || cur.items.length) turns.push(cur);
+  const out = [];
+  turns.forEach((t, i) => {
+    if (t.user) out.push(`<div class="row me"><div class="stack">${photosHTML(t.user.images)}${filesHTML(t.user.files)}${t.user.text ? `<div class="bubble">${md(t.user.text)}</div>` : ''}
+      ${undo && t.user.uuid && !working ? `<button class="undo-btn" data-action="undo" data-id="${p.id}" data-u="${t.user.uuid}" title="Put the files back the way they were before this message">Undo From Here</button>` : ''}</div></div>`);
+    if (working && i === turns.length - 1) return;
+    let lastTool = -1;
+    t.items.forEach((x, j) => { if (x.kind === 'tool' && !QUIET_TOOLS.test(x.name)) lastTool = j; });
+    let replies = t.items.filter((x, j) => x.kind === 'assistant' && j > lastTool);
+    if (!replies.length) { const all = t.items.filter(x => x.kind === 'assistant'); if (all.length) replies = [all[all.length - 1]]; }
+    if (replies.length) out.push(`<div class="row them">${critterImg(w, 'av', false)}<div class="stack"><div class="who">${esc(w.name)}</div>
+      ${replies.map(x => `<div class="bubble">${md(x.text)}</div>`).join('')}</div></div>`);
+    for (const x of t.items) {
+      if (x.kind === 'system') out.push(`<div class="sys">${esc(x.text)}</div>`);
+      if (x.kind === 'done' && x.error) out.push(`<div class="sys err">Stopped: ${esc(x.error)}</div>`);
+    }
+  });
+  return out.join('');
+}
+function workingBubble(w) {
+  return `<div class="row them">${critterImg(w, 'av', false)}<div class="stack">
+    <div class="bubble typing-bubble"><span class="dots"><i></i><i></i><i></i></span></div>
+    <div class="who-sub">${esc(w.name)} is working…</div></div></div>`;
+}
+
+function renderChatLog(forceBottom) {
+  const log = $('#chatLog');
+  const p = drawer.id && find(drawer.id);
+  if (!log || !p || !chat) return;
+  const w = workerOf(p);
+  const box = $('#dBody');
+  const nearBottom = forceBottom || box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  let html;
+  if (chat.loading) html = '<div class="sys">Loading chat…</div>';
+  else if (!chat.items.length) html = `<div class="sys">${p.folder
+    ? `Shift ${p.day} at the desk. Say hello to ${esc(w.name)} and give them this shift's task.`
+    : 'No chat yet. Pick a project folder under Details first.'}</div>`;
+  else if (drawer.tab === 'log') html = chatItemsHTML(chat.items, p, busy.has(p.id));
+  else html = `<div class="day-chip">Shift ${p.day}</div>` + threadHTML(chat.items, p, busy.has(p.id), { undo: true });
+  const mine = [...perms.values()].filter(r => r.projectId === p.id);
+  if (drawer.tab === 'chat' && mine.length) html += permHTML(mine[0]);
+  if (!busy.has(p.id) && p.helpers?.length && drawer.tab === 'chat') html += `<div class="row them">${critterImg(w, 'av', false)}<div class="stack">
+    <div class="bubble typing-bubble"><span class="dots"><i></i><i></i><i></i></span></div>
+    <div class="who-sub">${esc(w.name)} is leading a team of ${p.helpers.length}: ${p.helpers.map(h => esc(h.description)).join(' · ')}</div></div></div>`;
+  if (busy.has(p.id) && !mine.length) html += drawer.tab === 'chat' ? workingBubble(w)
+    : `<div class="typing">${critterImg(w, '', false)}<span class="dots"><i></i><i></i><i></i></span>${esc(w.name)} is working…</div>`;
+  log.innerHTML = html;
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+function renderComposer(p) {
+  const w = workerOf(p);
+  $('#dFoot').innerHTML = `
+    <div class="photo-tray" id="photoTray">${photoTrayHTML(p)}</div>
+    <div class="slash-menu" id="slashMenu" role="listbox" aria-label="Commands" hidden></div>
+    <div class="composer">
+      <button class="btn photo-btn" data-action="add-photos" data-id="${p.id}" title="Add photos or files (or paste / drag them in)" aria-label="Add photos or files" ${p.folder ? '' : 'disabled'}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"></rect><circle cx="9" cy="11" r="2"></circle><path d="m21 17-5-5-8 8"></path></svg></button>
+      <input type="file" id="photoIn" multiple hidden>
+      <textarea id="msg" rows="1" placeholder="Message ${esc(w.name)}…" aria-label="Message ${esc(w.name)}" ${p.folder ? '' : 'disabled'}></textarea>
+      <button class="btn plan-btn ${planNext[p.id] ? 'on' : ''}" data-action="plan-toggle" data-id="${p.id}" aria-pressed="${!!planNext[p.id]}" title="${esc(w.name)} looks around and writes a plan first, then waits for your OK before changing anything" ${p.folder ? '' : 'disabled'}>Plan First</button>
+      <button class="btn" data-action="stop" data-id="${p.id}" id="stopBtn" ${busy.has(p.id) ? '' : 'hidden'}>Stop</button>
+      <button class="btn primary" data-action="send" data-id="${p.id}" ${p.folder ? '' : 'disabled'}>Send</button>
+    </div>
+    <div class="hint">${planNext[p.id] ? `<b>Plan First is on:</b> ${esc(w.name)} will plan and wait for your OK before changing anything. · ` : ''}Enter to send · Shift+Enter for a new line · Type / for commands · Paste or drag in photos and files</div>`;
+}
+
+/* ---------- Photos in chat ---------- */
+// Each photo goes two ways: a smaller copy the critter looks at, and the original,
+// which the office saves in the project's "From <name>" folder.
+const photoDrafts = {};
+const planNext = {};   // projectId -> next message is sent with Plan First // projectId -> [{ name, view, viewType, full, fullType, preview }] or { loading: true }
+const VIEW_MAX = 1600;
+const FILE_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>';
+function photoTrayHTML(p) {
+  return (photoDrafts[p.id] || []).map((ph, i) => ph.loading ? '<div class="busy-photo">Adding…</div>' : ph.kind === 'file' ? `
+    <figure class="file-chip">${FILE_ICON}<span>${esc(ph.name)}</span>
+      <button class="rm" data-action="rm-photo" data-id="${p.id}" data-i="${i}" aria-label="Remove ${esc(ph.name)}">✕</button></figure>` : `
+    <figure><img src="${ph.preview}" alt="${esc(ph.name)}">
+      <button class="rm" data-action="rm-photo" data-id="${p.id}" data-i="${i}" aria-label="Remove ${esc(ph.name)}">✕</button></figure>`).join('');
+}
+function renderPhotoTray(p) { const t = $('#photoTray'); if (t) t.innerHTML = photoTrayHTML(p); }
+const readB64 = blob => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(blob); });
+function loadImg(file) {
+  return new Promise((ok, bad) => { const img = new Image(); img.onload = () => ok(img); img.onerror = bad; img.src = URL.createObjectURL(file); });
+}
+async function preparePhoto(file) {
+  const img = await loadImg(file);
+  const big = Math.max(img.naturalWidth, img.naturalHeight);
+  const easy = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type);
+  const asIs = easy && big <= 2000 && file.size <= 3.5e6;  // small enough to send unchanged
+  let view, viewType;
+  if (asIs) { view = await readB64(file); viewType = file.type; }
+  else {
+    const k = Math.min(1, VIEW_MAX / big), c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
+    view = await readB64(blob); viewType = 'image/jpeg';
+  }
+  // Save the original too when it differs from what the critter sees (bigger, or HEIC from an iPhone).
+  const full = !asIs && file.size <= 30e6 && (easy || file.type === 'image/heic') ? await readB64(file) : null;
+  return { name: file.name || 'photo', view, viewType, preview: img.src, full, fullType: full ? file.type : viewType };
+}
+const MAX_FILE = 30e6;
+async function prepareFile(file) {
+  if (file.size > MAX_FILE) throw new Error(`${file.name} is over 30 MB.`);
+  return { kind: 'file', name: file.name || 'file', type: file.type, data: await readB64(file) };
+}
+async function addPhotos(p, files) {
+  files = [...files];
+  if (!p || !files.length) return;
+  const list = photoDrafts[p.id] ||= [];
+  const room = 10 - list.filter(x => !x.loading).length;
+  if (room <= 0) return toast('Up to 10 photos or files per message.');
+  for (const f of files.slice(0, room)) {
+    const slot = { loading: true };
+    list.push(slot); renderPhotoTray(p);
+    try {
+      // Photos get a smaller copy for the critter to look at; a photo the browser can't open (HEIC in Chrome) goes as a file.
+      const ready = f.type.startsWith('image/') ? await preparePhoto(f).catch(() => prepareFile(f)) : await prepareFile(f);
+      Object.assign(slot, ready, { loading: false });
+    }
+    catch (e) { list.splice(list.indexOf(slot), 1); toast(e.message?.includes('30 MB') ? e.message : `Couldn't open ${f.name || 'that file'}.`); }
+    renderPhotoTray(p);
+  }
+  if (files.length > room) toast('Up to 10 photos or files per message. Added the first ' + room + '.');
+}
+function updateComposer(p) {
+  const stop = $('#stopBtn');
+  if (stop) stop.hidden = !busy.has(p.id);
+  const msg = $('#msg');
+  if (msg && msg.disabled === !!p.folder) renderComposer(p);
+}
+
+function todosTabHTML(p) {
+  const w = workerOf(p);
+  const open = p.todos.filter(t => !t.done).length;
+  const done = p.todos.length - open;
+  return `
+    <h3>To-dos for ${esc(w.name)} (${open} open)</h3>
+    ${todoForm(p)}
+    <div style="margin-top:12px">${todoList(p)}</div>
+    ${done ? `<details class="completed" ${drawer.showDone ? 'open' : ''}>
+      <summary data-action="toggle-done-list">Completed (${done})</summary>
+      <ul class="list">${p.todos.filter(t => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).map(t => `
+        <li class="done">
+          <input type="checkbox" checked data-action="toggle-todo" data-id="${p.id}" data-t="${t.id}" aria-label="Put back on the list">
+          <span class="txt" title="${esc(t.text)}">${esc(showTodo(t.text))}</span>
+          ${t.doneSession ? `<button class="done-link" data-action="todo-chat" data-id="${p.id}" data-t="${t.id}">Done in Shift ${t.doneShift} →</button>` : ''}
+          ${t.doneAt ? `<small class="muted">${fmtDate(t.doneAt)}</small>` : ''}
+        </li>`).join('')}</ul>
+      <button class="btn small" data-action="clear-done" data-id="${p.id}">Clear Completed</button>
+    </details>` : ''}`;
+}
+
+function detailsHTML(p) {
+  const w = workerOf(p);
+  const open = p.todos.filter(t => !t.done);
+  return `
+    <h3>Project</h3>
+    <label class="label" for="f-name">Project name</label>
+    <input class="field" id="f-name" data-field="name" value="${esc(p.name)}">
+    <label class="label">Name plate</label>
+    <div class="plates">${Object.entries(PLATES).map(([k, l]) =>
+      `<button class="${(p.plate || 'moss') === k ? 'on' : ''}" style="--c:var(--plate-${k});--c-on:var(--plate-${k}-on)" data-action="plate" data-id="${p.id}" data-v="${k}" aria-pressed="${(p.plate || 'moss') === k}">${l}</button>`).join('')}</div>
+    <label class="label">Critter on this project</label>
+    <div class="worker-row">${critterImg(w, '', false)}<input class="field" data-worker="${w.id}" value="${esc(w.name)}" aria-label="Critter's name"><span class="muted">the ${esc(animalOf(w))}</span></div>
+
+    <h3>Project folder</h3>
+    <input class="field" id="f-folder" list="folderList" value="${esc(p.folder)}" placeholder="${esc(projectsRoot())}/My Project" ${p.closed ? 'disabled' : ''}>
+    <datalist id="folderList">${folders.map(f => `<option value="${esc(f)}">`).join('')}</datalist>
+    <p class="muted">${esc(w.name)} works inside this folder. Changing it starts a fresh chat.</p>
+    ${!p.folder && !p.closed ? `<button class="btn small accent" data-action="create-folder" data-id="${p.id}">Make a New Folder: ${esc(newFolderPreview(p.name))}</button>` : ''}
+    ${p.folder && !p.closed ? `<button class="btn small" data-action="load-sessions" data-id="${p.id}">Pick Up an Existing Chat From This Folder</button>
+      ${sessionsList ? (sessionsList.length ? `<ul class="sessions">${sessionsList.map(s => `
+        <li><span title="${esc(s.title)}">${esc(s.title)}</span><small class="muted">${ago(s.lastModified)}</small>
+        ${s.sessionId === p.sessionId ? '<small>current</small>' : `<button class="btn small" data-action="attach" data-id="${p.id}" data-s="${s.sessionId}">Use This Chat</button>`}</li>`).join('')}</ul>`
+        : '<p class="muted">No chats found in this folder.</p>') : ''}` : ''}
+
+    ${p.closed ? '' : `
+    <h3>Where is the project?</h3>
+    <div class="choices">${STAGES.map((st, i) =>
+      `<button class="choice ${i === p.stage ? 'on' : ''}" data-action="stage" data-id="${p.id}" data-i="${i}">${i + 1}. ${st}</button>`).join('')}</div>
+
+    <h3>This shift · Shift ${p.day}</h3>
+    <label class="label" for="f-task">Today's task</label>
+    <textarea class="field" id="f-task" data-field="task" placeholder="What is this chat working on?">${esc(p.task)}</textarea>
+    <label class="label" for="f-note">Where they left off</label>
+    <textarea class="field" id="f-note" data-field="note" placeholder="Last thing done, next step, links…">${esc(p.note)}</textarea>
+    <p class="muted">${esc(w.name)} fills these in as they go. You can edit them too.</p>
+
+    ${jobsHTML(p)}
+
+
+    <h3>How much freedom?</h3>
+    ${APPROVALS.map(([k, label, help]) => `
+    <label class="radio"><input type="radio" name="pm" data-action="perm-mode" data-id="${p.id}" data-v="${k}" ${(p.permissionMode || 'default') === k ? 'checked' : ''}>
+      <span>${label}<small>${help.replace('{name}', esc(w.name))}</small></span></label>`).join('')}
+
+    <h3>Browser</h3>
+    <label class="radio"><input type="checkbox" id="f-chrome" ${p.useChrome ? 'checked' : ''}>
+      <span>Let ${esc(w.name)} use Claude in Chrome<small>Works in your real Chrome, so you can watch there. Needs the Claude in Chrome extension.</small></span></label>
+    ${p.useChrome && ['free', 'auto'].includes(p.permissionMode) ? `<label class="radio"><input type="checkbox" id="f-chrome-free" ${p.chromeFree !== false ? 'checked' : ''}>
+      <span>Use Chrome without asking<small>${esc(w.name)} can click, type and read pages in Chrome without a "May I?" each time.</small></span></label>` : ''}`}
+
+    <div class="danger-zone">
+      ${p.closed ? `<button class="btn primary" data-action="reopen" data-id="${p.id}">Reopen Project</button>
+        <button class="btn warn" data-action="delete" data-id="${p.id}">Delete for Good</button>`
+        : `<button class="btn warn" data-action="close-project" data-id="${p.id}">Close Project</button>
+        <span class="muted">${esc(w.name)} goes back to the meadow. You can reopen it later.</span>`}
+    </div>`;
+}
+
+function mateDetailsHTML(p) {
+  const w = workerOf(p), home = homeOf(p);
+  return `
+    <h3>Desk mate</h3>
+    <div class="worker-row">${critterImg(w, '', false)}<input class="field" data-worker="${w.id}" value="${esc(w.name)}" aria-label="Critter's name"><span class="muted">the ${esc(animalOf(w))}</span></div>
+    <p>${esc(w.name)} works on <b>${esc(home.name)}</b> alongside ${esc(workerOf(home).name)}, with their own chat. They share the cubicle's to-do list.</p>
+    ${p.shared ? `<p class="muted">This project doesn't use git, so ${esc(w.name)} works in the same folder as ${esc(workerOf(home).name)}. They may edit the same files, so give them separate jobs.</p>`
+      : `<p class="muted">${esc(w.name)} works in their own copy of the project (branch <code>${esc(p.branch)}</code>), so they never overwrite ${esc(workerOf(home).name)}'s files. Press <b>Bring Work Back</b> to put their saved work into the main project.</p>`}
+
+    <h3>This shift · Shift ${p.day}</h3>
+    <label class="label" for="f-task">Today's task</label>
+    <textarea class="field" id="f-task" data-field="task" placeholder="What is this chat working on?">${esc(p.task)}</textarea>
+    <label class="label" for="f-note">Where they left off</label>
+    <textarea class="field" id="f-note" data-field="note" placeholder="Last thing done, next step, links…">${esc(p.note)}</textarea>
+
+    <h3>How much freedom?</h3>
+    ${APPROVALS.map(([k, label, help]) => `
+    <label class="radio"><input type="radio" name="pm" data-action="perm-mode" data-id="${p.id}" data-v="${k}" ${(p.permissionMode || 'default') === k ? 'checked' : ''}>
+      <span>${label}<small>${help.replace('{name}', esc(w.name))}</small></span></label>`).join('')}
+
+    <h3>Browser</h3>
+    <label class="radio"><input type="checkbox" id="f-chrome" ${p.useChrome ? 'checked' : ''}>
+      <span>Let ${esc(w.name)} use Claude in Chrome<small>Works in your real Chrome, so you can watch there. Needs the Claude in Chrome extension.</small></span></label>
+
+    <div class="danger-zone">
+      <button class="btn warn" data-action="send-home" data-id="${p.id}">Send ${esc(w.name)} Home</button>
+      <span class="muted">${esc(w.name)} goes back to the meadow. Their past shifts stay on the cubicle.</span>
+    </div>`;
+}
+
+// Save a version (commit), publish it (push), and open a pull request, without typing git commands.
+function shipBar(p, unsaved) {
+  const info = changes?.info, w = workerOf(p);
+  if (!info) return '';
+  const parts = [];
+  if (unsaved) parts.push(`<form class="save-form" data-form="save" data-id="${p.id}">
+    <input class="field" placeholder="What changed? (e.g. New contact page)" aria-label="Describe this version" value="${esc(p.task || '')}">
+    <button class="btn small accent">Save a Version</button></form>`);
+  const line = !info.branch ? 'Not on a branch right now.'
+    : !info.remote ? `On branch <code>${esc(info.branch)}</code> · not on GitHub yet.`
+    : info.ahead || !info.upstream ? `On branch <code>${esc(info.branch)}</code> · ${info.ahead ? `${info.ahead} saved version${info.ahead === 1 ? '' : 's'} not on GitHub yet` : 'not on GitHub yet'}.`
+    : `On branch <code>${esc(info.branch)}</code> · everything saved is on GitHub.`;
+  const btns = [];
+  if (!info.remote) btns.push(`<button class="btn small" data-action="ask-critter" data-id="${p.id}" data-msg="github">Ask ${esc(w.name)} to Put It on GitHub</button>`);
+  if (info.remote && info.branch && (info.ahead || !info.upstream)) btns.push(`<button class="btn small" data-action="publish" data-id="${p.id}">Publish to GitHub</button>`);
+  if (info.remote && info.gh && info.branch && info.branch !== info.defaultBranch) btns.push(`<button class="btn small" data-action="pull-request" data-id="${p.id}">Open a Pull Request</button>`);
+  return `<div class="ship">${parts.join('')}<div class="ship-line"><span class="muted">${line}</span>${btns.join('')}</div></div>`;
+}
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const fmt12 = t => { const [h, m] = (t || '09:00').split(':').map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); };
+const jobWhen = j => j.every === 'hour' ? `Every hour at :${(j.time || '09:00').slice(3)}` : j.every === 'weekday' ? `Weekdays at ${fmt12(j.time)}`
+  : j.every === 'week' ? `${DAYS[j.weekday ?? 1]}s at ${fmt12(j.time)}` : `Every day at ${fmt12(j.time)}`;
+function jobsHTML(p) {
+  const w = workerOf(p), jobs = p.jobs || [];
+  return `
+    <h3>Recurring jobs</h3>
+    <p class="muted">Messages the office sends ${esc(w.name)} on a schedule. The office has to be running, and your Mac awake, at that time.</p>
+    ${jobs.length ? `<ul class="jobs">${jobs.map(j => `
+      <li class="${j.on ? '' : 'off'}">
+        <input type="checkbox" ${j.on ? 'checked' : ''} data-action="job-toggle" data-id="${p.id}" data-j="${j.id}" aria-label="Job on">
+        <div><b>${esc(j.text)}</b><small>${jobWhen(j)}${j.on && j.nextRun ? ` · next ${fmtDate(j.nextRun)} ${new Date(j.nextRun).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : ''}${j.missedAt && (!j.lastRun || j.missedAt > j.lastRun) ? ' · missed the last one (office was off)' : ''}</small></div>
+        <button class="mini" data-action="job-del" data-id="${p.id}" data-j="${j.id}" aria-label="Delete job">✕</button></li>`).join('')}</ul>` : ''}
+    <form class="job-form" data-form="job" data-id="${p.id}">
+      <input class="field" placeholder="e.g. Check the website for broken links and tell me what you find" aria-label="What should ${esc(w.name)} do?">
+      <div class="job-when">
+        <select class="field" name="every" aria-label="How often"><option value="day">Every day</option><option value="weekday">Every weekday</option><option value="week">Every week</option><option value="hour">Every hour</option></select>
+        <select class="field" name="weekday" aria-label="Which day">${DAYS.map((d, i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${d}</option>`).join('')}</select>
+        <input class="field" type="time" name="time" value="09:00" aria-label="Time">
+        <button class="btn small">Add Job</button>
+      </div>
+    </form>`;
+}
+
+/* ---------- Search ---------- */
+let search = { q: '', results: null, loading: false };
+function renderSearch() {
+  return `
+    <div class="page-head">
+      <button class="btn" data-action="go" data-v="floor">← The Floor</button>
+      <div><h2>Search</h2></div>
+    </div>
+    <input class="field search-box" id="searchQ" type="search" value="${esc(search.q)}" placeholder="Search every chat: words, file names, errors…" aria-label="Search all chats" autocomplete="off">
+    <div id="searchResults">${searchResultsHTML()}</div>`;
+}
+function searchResultsHTML() {
+  if (search.q.length < 2) return '<p class="muted">Type at least two letters. Searches today\'s chats and every past shift, closed projects too.</p>';
+  if (search.loading && !search.results) return '<p class="muted">Searching…</p>';
+  if (!search.results?.length) return `<p class="muted">Nothing found for "${esc(search.q)}".</p>`;
+  const mark = t => esc(t).replace(new RegExp(search.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/&/g, '&amp;').replace(/</g, '&lt;'), 'gi'), m => `<mark>${m}</mark>`);
+  return `<ul class="results">${search.results.map(r => {
+    const p = find(r.projectId), rw = findWorker(r.workerId) || workerOf(p);
+    return `<li><button class="result" data-action="open-result" data-id="${r.projectId}" data-s="${r.sessionId}" data-current="${r.current}">
+      <div class="r-top">${critterImg(rw, '', false)}<b>${esc(p?.name || 'Old project')}</b><span class="muted">${esc(rw?.name || '')} · Shift ${r.day}${r.current ? ' (today)' : ''}${p?.closed ? ' · closed' : ''} · ${ago(r.at)}</span><span class="r-count">${r.count} match${r.count === 1 ? '' : 'es'}</span></div>
+      ${r.hits.map(h => `<p><small>${h.who === 'user' ? 'You' : esc(rw?.name || 'Critter')}:</small> ${mark(h.snippet)}</p>`).join('')}
+    </button></li>`; }).join('')}</ul>`;
+}
+let searchTimer = null;
+function runSearch(q) {
+  search.q = q;
+  clearTimeout(searchTimer);
+  if (q.trim().length < 2) { search.results = null; $('#searchResults').innerHTML = searchResultsHTML(); return; }
+  search.loading = true;
+  searchTimer = setTimeout(async () => {
+    const asked = q;
+    const r = await api('GET', `/api/search?q=${encodeURIComponent(q.trim())}`).catch(() => ({ results: [] }));
+    if (asked !== search.q) return;
+    search.results = r.results; search.loading = false;
+    const box = $('#searchResults'); if (box) box.innerHTML = searchResultsHTML();
+  }, 300);
+}
+document.addEventListener('input', e => { if (e.target.id === 'searchQ') runSearch(e.target.value); });
+
+/* ---------- Slash commands ---------- */
+const commands = {};   // projectId -> list from Claude Code, or 'loading'
+let slash = { open: false, items: [], sel: 0 };
+async function updateSlash() {
+  const box = $('#msg'), menu = $('#slashMenu'), p = find(drawer.id);
+  if (!box || !menu || !p) return;
+  const m = box.value.match(/^\/([\w:.-]*)$/);
+  if (!m) return closeSlash();
+  if (!commands[p.id]) {
+    commands[p.id] = 'loading';
+    api('GET', `/api/projects/${p.id}/commands`).then(r => { commands[p.id] = r.commands; updateSlash(); }).catch(() => { commands[p.id] = []; });
+  }
+  const list = commands[p.id];
+  const q = m[1].toLowerCase();
+  slash.items = Array.isArray(list) ? list.filter(c => c.name.toLowerCase().includes(q)).sort((a, b) => b.name.toLowerCase().startsWith(q) - a.name.toLowerCase().startsWith(q)).slice(0, 40) : [];
+  slash.sel = Math.min(slash.sel, Math.max(0, slash.items.length - 1));
+  slash.open = true;
+  menu.hidden = false;
+  menu.innerHTML = list === 'loading' ? '<div class="empty">Loading commands…</div>'
+    : slash.items.length ? slash.items.map((c, i) => `<button class="${i === slash.sel ? 'on' : ''}" role="option" aria-selected="${i === slash.sel}" data-action="pick-command" data-c="${esc(c.name)}"><b>/${esc(c.name)}${c.hint ? ` ${esc(c.hint)}` : ''}</b><span>${esc(c.description)}</span></button>`).join('')
+    : '<div class="empty">No matching commands.</div>';
+  menu.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+}
+function closeSlash() { slash.open = false; const menu = $('#slashMenu'); if (menu) { menu.hidden = true; menu.innerHTML = ''; } }
+function pickCommand(name) {
+  const box = $('#msg');
+  box.value = `/${name} `; closeSlash(); box.focus(); autosize(box);
+}
+document.addEventListener('input', e => { if (e.target.id === 'msg') { slash.sel = 0; updateSlash(); } });
+
+function changesHTML(p) {
+  if (!changes) return '<div class="sys">Loading changes…</div>';
+  const refresh = `<button class="btn small" data-action="refresh-changes" data-id="${p.id}">Refresh</button>`;
+  const w = workerOf(p);
+  if (changes.noFolder) return '<p class="muted">Pick a project folder under Details first.</p>';
+  if (changes.notRepo) return `<p>This folder isn't tracked with git, so there's no overall diff to show and no way to save versions or publish.</p>
+    <p class="muted">Every edit still shows as a red and green diff inside the chat.</p>
+    <button class="btn small accent" data-action="ask-critter" data-id="${p.id}" data-msg="setup-git">Ask ${esc(w.name)} to Set Up Git</button> ${refresh}`;
+  const waiting = p.worktree && changes.waiting?.length ? `<div class="waiting">
+    <h4>Saved, not brought back yet</h4>
+    <p class="muted">${esc(w.name)} saved ${changes.waiting.length} piece${changes.waiting.length === 1 ? '' : 's'} of work that ${changes.waiting.length === 1 ? "isn't" : "aren't"} in the main project yet:</p>
+    <ul>${changes.waiting.slice(0, 12).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+    ${changes.waitingFiles?.length ? `<p class="muted">Files: ${changes.waitingFiles.slice(0, 20).map(f => esc(f.split('\t').pop())).join(', ')}</p>` : ''}
+    <button class="btn small accent" data-action="bring-back" data-id="${p.id}">Bring Work Back</button></div>` : '';
+  const files = (changes.status || '').split('\n').filter(Boolean);
+  const ship = shipBar(p, files.length);
+  if (!files.length) return `${ship}${waiting}<p>No unsaved changes${waiting ? ' besides that' : ''}. All tidy.</p>${refresh}`;
+  const untracked = files.filter(l => l.startsWith('??')).map(l => l.slice(3));
+  const sections = [];
+  let cur = null;
+  for (const line of (changes.diff || '').split('\n')) {
+    if (line.startsWith('diff --git')) { cur = { file: line.replace(/^diff --git a\/(.+?) b\/.*$/, '$1'), lines: [] }; sections.push(cur); }
+    else if (!cur || /^(index |--- |\+\+\+ |new file|deleted file|similarity|rename |old mode|new mode)/.test(line)) continue;
+    else if (line.startsWith('@@')) cur.lines.push(['@', line]);
+    else if (line.startsWith('+')) cur.lines.push(['+', line.slice(1)]);
+    else if (line.startsWith('-')) cur.lines.push(['-', line.slice(1)]);
+    else if (line.startsWith(' ')) cur.lines.push([' ', line.slice(1)]);
+  }
+  return `${ship}${waiting}<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${files.length} changed file${files.length === 1 ? '' : 's'}</b>${refresh}</div>
+    ${sections.map(s => `<div class="file-head"><span class="path">${esc(s.file)}</span></div>${diffHTML(s.lines, 600)}`).join('')}
+    ${untracked.length ? `<div class="file-head">New files not yet in git</div><ul class="list">${untracked.map(f => `<li><span class="path">${esc(f)}</span></li>`).join('')}</ul>` : ''}`;
+}
+
+function pastHTML(p) {
+  if (!p.history.length) return '<p class="muted">No finished shifts yet. Press New Shift to wrap up and start a fresh chat.</p>';
+  return `<ul class="history">${p.history.map((h, i) => {
+    const hw = h.workerId && h.workerId !== p.workerId ? findWorker(h.workerId) : null;
+    return `<li><div class="h-top"><b>Shift ${h.day}${hw ? ` · with ${esc(hw.name)}` : ''}</b><span>${fmtDate(h.date)} · ${STAGES[h.stage] || ''}</span></div>
+      ${h.task ? `<p>${esc(h.task)}</p>` : ''}${h.note ? `<p class="note">${esc(h.note)}</p>` : ''}
+      ${h.summary ? `<details class="day-summary"><summary>End-of-Shift Summary</summary><div class="bubble">${md(h.summary)}</div></details>` : ''}
+      ${h.sessionId ? `<div class="h-actions">
+        <button class="btn small" data-action="read-day" data-i="${i}">${pastChat?.index === i ? 'Hide chat' : 'Read chat'}</button>
+        <button class="btn small" data-action="open-desktop-past" data-s="${h.sessionId}">Open in Claude Desktop</button></div>` : ''}
+      ${pastChat?.index === i ? `<div class="thread" style="margin-top:10px">${pastChat.loading ? '<div class="sys">Loading…</div>' : threadHTML(pastChat.items, p, false)}</div>` : ''}
+    </li>`; }).join('')}</ul>`;
+}
+async function loadChanges(p) {
+  changes = null;
+  renderDrawer(true);
+  try { changes = await api('GET', `/api/projects/${p.id}/changes`); } catch (e) { changes = { status: '', diff: '' }; }
+  if (drawer.id === p.id && drawer.tab === 'changes') renderDrawer(true);
+}
+
+/* ---------- Render ---------- */
+// The line under the title: today's date plus a little scene for the room you're in.
+// It changes with the time of day and from day to day, but stays put within a visit.
+const SCENES = {
+  morning: ['A fresh morning in {p}', 'Dew on the leaves in {p}', "The kettle's on in {p}", 'An early start in {p}', 'Birdsong over {p}'],
+  day: ['A quiet day in {p}', 'Busy paws in {p}', 'Sunshine over {p}', 'Leaves rustling in {p}', 'Tea and to-dos in {p}', 'A breezy afternoon in {p}'],
+  evening: ['A cosy evening in {p}', 'Lanterns lit in {p}', 'Winding down in {p}', 'Crickets chirping in {p}', 'Fireflies over {p}'],
+};
+const PLACES = { floor: 'The Grove', boss: 'The Burrow', meadow: 'The Meadow', settings: 'The Grove', search: 'The Grove' };
+function todayLine() {
+  const now = new Date(), h = now.getHours();
+  const list = SCENES[h < 11 ? 'morning' : h < 18 ? 'day' : 'evening'];
+  const dayNo = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 864e5);
+  const scene = list[dayNo % list.length].replace('{p}', PLACES[view] || 'The Grove');
+  return now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) + ' · ' + scene;
+}
+function render() {
+  if (!ONLINE) return renderOffline();
+  const main = $('#app');
+  const typing = main.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName) && !document.activeElement.closest('form');
+  if (!typing) main.innerHTML = view === 'boss' ? renderBoss() : view === 'meadow' ? renderMeadow() : view === 'settings' ? renderSettings() : view === 'search' ? renderSearch() : renderFloor();
+  for (const v of ['floor', 'boss', 'meadow', 'settings', 'search']) $('#nav-' + v).classList.toggle('on', view === v);
+  $('#conn').textContent = connected ? '' : 'Reconnecting to the office…';
+  $('#today').textContent = todayLine();
+  renderTray();
+  if (pendingFocus && !drawer.id) { $(pendingFocus)?.focus(); pendingFocus = null; }
+}
+function renderOffline() {
+  $('#app').innerHTML = `<div class="offline">
+    <h2>The office is closed</h2>
+    <p>Start it once, then leave that Terminal window open:</p>
+    <pre>cd "${esc(decodeURIComponent(location.pathname.replace(/\/index\.html$/, '')))}"\nnpm start</pre>
+    <p>Then open <a href="http://localhost:4545">http://localhost:4545</a>.</p></div>`;
+  document.querySelector('.topbar nav').hidden = true;
+}
+function go(v) {
+  view = v;
+  if (v === 'boss' || v === 'floor') fetchUsage();
+  if (!SHOTTING) try { localStorage.setItem('agentOffice.view', v); } catch (e) {}
+  window.scrollTo(0, 0);
+  main_rerender();
+}
+function main_rerender() { $('#app').innerHTML = ''; render(); }
+
+/* ---------- Live connection ---------- */
+// Live link to the office. The Mac can quietly drop long connections (sleep, App Nap),
+// and WebKit doesn't always retry, so keep an eye on it and reconnect ourselves.
+let es = null, lastHeard = 0, sawPing = false, pageBuild = null;
+function reloadWhenSafe() {
+  const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '') && document.activeElement.value;
+  if (!typing && !hire) return location.reload();
+  setTimeout(reloadWhenSafe, 5000);
+}
+function reconnect() { try { es?.close(); } catch (e) {} connected = false; render(); connect(); }
+function linkLooksDead() { return !connected || es?.readyState === 2 || (sawPing && Date.now() - lastHeard > 50000); }
+setInterval(() => { if (ONLINE && !SHOTTING && linkLooksDead()) reconnect(); }, 10000);
+for (const evName of ['focus', 'online', 'pageshow']) window.addEventListener(evName, () => { if (ONLINE && linkLooksDead()) reconnect(); });
+document.addEventListener('visibilitychange', () => { if (ONLINE && !document.hidden && linkLooksDead()) reconnect(); });
+
+function connect() {
+  es = new EventSource(`/api/events?token=${TOKEN}`);
+  es.onopen = () => { connected = true; lastHeard = Date.now(); render(); };
+  es.onerror = () => { connected = false; render(); if (es.readyState === 2) setTimeout(reconnect, 2000); };
+  es.onmessage = e => {
+    lastHeard = Date.now();
+    const ev = JSON.parse(e.data);
+    if (ev.type === 'ping') { sawPing = true; return; }
+    if (ev.type === 'hello') {
+      // The office was updated: load the new page once nothing is being typed.
+      if (pageBuild && ev.build && ev.build !== pageBuild) reloadWhenSafe();
+      pageBuild ||= ev.build;
+      office = ev.office;
+      guardLog = ev.guardLog || [];
+      applyTheme();
+      fetchUsage();
+      busy = new Set(ev.busy);
+      perms = new Map(ev.permissions.map(r => [r.reqId, r]));
+      render(); renderDrawer(true); renderHire();
+      if (drawer.id && drawer.tab === 'chat') { const p = find(drawer.id); if (p) loadChat(p); }
+      applyShot();
+    } else if (ev.type === 'project') {
+      const i = office.projects.findIndex(p => p.id === ev.project.id);
+      const prevSession = i >= 0 ? office.projects[i].sessionId : undefined;
+      if (i >= 0 && office.projects[i].wrapping && !ev.project.wrapping && ev.project.day > office.projects[i].day) {
+        toast(`${workerOf(ev.project).name} wrapped up Shift ${ev.project.day - 1}. The summary is in Past Shifts.`);
+      }
+      if (i >= 0) {
+        const f = document.activeElement?.dataset?.field;
+        if (f && drawer.id === ev.project.id) ev.project[f] = office.projects[i][f];
+        office.projects[i] = ev.project;
+      } else office.projects.push(ev.project);
+      if (drawer.id === ev.project.id) {
+        if (ev.project.unread && drawer.tab === 'chat') patch(ev.project, { unread: false });
+        const switched = prevSession && ev.project.sessionId !== prevSession;
+        if (drawer.tab === 'chat' && switched && !ev.project.closed) loadChat(ev.project);
+        renderDrawer(false);
+      }
+      render(); if (hire) renderHire();
+    } else if (ev.type === 'worker') {
+      const i = office.workers.findIndex(w => w.id === ev.worker.id);
+      if (i >= 0) office.workers[i] = ev.worker; else office.workers.push(ev.worker);
+      render();
+      if (drawer.id) renderDrawer(false);
+    } else if (ev.type === 'deleted') {
+      office.projects = office.projects.filter(p => p.id !== ev.id);
+      if (drawer.id === ev.id) closeDrawer(); else render();
+    } else if (ev.type === 'guard') {
+      guardLog = ev.log || [];
+      if (view === 'settings') render();
+    } else if (ev.type === 'toast') {
+      toast(ev.text);
+    } else if (ev.type === 'settings') {
+      office.settings = ev.settings;
+      applyTheme();
+      render(); if (!hire) renderHire();  // closes the welcome screen in other windows too
+    } else if (ev.type === 'stickies') {
+      office.stickies = ev.stickies;
+      if (!document.activeElement?.dataset?.sticky) render();
+    } else if (ev.type === 'whiteboard') {
+      office.whiteboard = ev.text;
+      if (document.activeElement?.id !== 'wb') render();
+    } else if (ev.type === 'chat') {
+      if (chat && chat.id === ev.id) {
+        if (chat.loading) chat.buffer.push(...ev.items); else chat.items.push(...ev.items);
+        renderChatLog();
+      }
+    } else if (ev.type === 'busy') {
+      const was = busy.has(ev.id);
+      ev.busy ? busy.add(ev.id) : busy.delete(ev.id);
+      if (was && !ev.busy) notify(ev.id, 'has something for you');
+      render();
+      if (drawer.id === ev.id) renderDrawer(false);
+    } else if (ev.type === 'permission') {
+      perms.set(ev.req.reqId, ev.req);
+      const ap = find(ev.req.projectId), aw = workerOf(ap);
+      if (window.webkit?.messageHandlers?.office) {
+        // In the Mac app: a Notification Center alert with Allow / Always allow / Not now buttons.
+        const i = ev.req.input || {};
+        window.webkit.messageHandlers.office.postMessage({ kind: 'ask', reqId: ev.req.reqId, projectId: ev.req.projectId, canAlways: !!ev.req.canAlways,
+          title: `${aw.name} · ${askQuestion(ev.req, ap)}`,
+          body: [i.description || ev.req.description || '', i.command || (i.file_path ? shortPath(i.file_path, ap?.folder) : '')].filter(Boolean).join('\n').slice(0, 300) });
+      } else notify(ev.req.projectId, 'is asking "May I?"', ev.req.title);
+      render();
+      if (drawer.id === ev.req.projectId) renderChatLog();
+    } else if (ev.type === 'permission-done') {
+      window.webkit?.messageHandlers?.office?.postMessage({ kind: 'ask-done', reqId: ev.reqId });
+      const r = perms.get(ev.reqId);
+      perms.delete(ev.reqId);
+      render();
+      if (r && drawer.id === r.projectId) renderChatLog();
+    }
+  };
+}
+function notify(id, what, detail) {
+  const p = find(id);
+  // In the Mac app the app itself decides whether the window is in the background.
+  if (!p || (!document.hidden && !window.AGENT_OFFICE_APP) || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const w = workerOf(p);
+  const n = new Notification(`${w.name} ${what}`, { body: detail || p.name, tag: id + what, icon: w.critter ? `/assets/critters/${w.critter}.png` : undefined });
+  n.onclick = () => { window.focus(); openDrawer(id, 'chat'); n.close(); };
+}
+
+/* ---------- Actions ---------- */
+async function sendMsg(p) {
+  const box = $('#msg');
+  const text = box.value.trim();
+  const drafts = photoDrafts[p.id] || [];
+  if (drafts.some(x => x.loading)) return toast('Still adding your photos. One moment.');
+  if (!text && !drafts.length) return;
+  if (p.inDesktop && !p.desktopDone && !confirm(`This chat is still open in the Claude desktop app.\n\nSend from the office instead? Only type in one place at a time.`)) return;
+  box.value = ''; autosize(box);
+  photoDrafts[p.id] = []; renderPhotoTray(p);
+  const photos = drafts.map(({ kind, name, type, data, view, viewType, full, fullType }) => ({ kind, name, type, data, view, viewType, full, fullType }));
+  const plan = !!planNext[p.id] && !text.startsWith('/');
+  closeSlash();
+  try {
+    await api('POST', `/api/projects/${p.id}/message`, { text, photos, plan });
+    if (plan) { planNext[p.id] = false; renderComposer(p); }
+  }
+  catch (e) { box.value = text; photoDrafts[p.id] = drafts; renderPhotoTray(p); }
+}
+function autosize(t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 200) + 'px'; }
+const rid = () => Math.random().toString(36).slice(2, 10);
+function saveStickies(wait = 600) {
+  clearTimeout(patchTimers.stickies);
+  patchTimers.stickies = setTimeout(() => api('PUT', '/api/stickies', { stickies: office.stickies }).catch(() => {}), wait);
+}
+
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const { action, id, t } = el.dataset;
+  const p = id && find(id);
+  if (el.tagName === 'A') e.preventDefault();
+  switch (action) {
+    case 'go': return go(el.dataset.v);
+    case 'open': return openDrawer(id, t);
+    case 'close-drawer': return closeDrawer();
+    case 'tab': {
+      drawer.tab = t;
+      pastChat = null;
+      renderDrawer(true); renderTray();
+      const dp = find(drawer.id);
+      if ((t === 'chat' || t === 'log') && !chat) loadChat(dp);
+      if (t === 'changes') loadChanges(dp);
+      if (t === 'details') loadFolders();
+      return;
+    }
+    case 'hire': return openHire({ workerId: el.dataset.w || null });
+    case 'reopen': {
+      const prev = p.workerId && !hiredAt(p.workerId) ? p.workerId : null;
+      return openHire({ mode: 'reopen', projectId: p.id, workerId: prev });
+    }
+    case 'pick': {
+      hire.workerId = el.dataset.w;
+      hire.task = $('#h-task')?.value ?? hire.task;
+      hire.name = $('#h-name')?.value ?? hire.name;
+      hire.folder = $('#h-folder')?.value ?? hire.folder;
+      return renderHire();
+    }
+    case 'hire-cancel': hire = null; return renderHire();
+    case 'setup-go': return finishSetup();
+    case 'create-folder': {
+      const r = await api('POST', `/api/projects/${p.id}/create-folder`);
+      Object.assign(p, r.project); chat = null; folders = [];
+      toast(`Folder made: ${shortPath(r.project.folder)}`);
+      return renderDrawer(true);
+    }
+    case 'add-sticky': {
+      const colors = ['mustard', 'berry', 'trip', 'team', 'ok', 'accent'];
+      const n = { id: rid(), text: '', color: colors[(office.stickies || []).length % colors.length] };
+      office.stickies = [...(office.stickies || []), n];
+      saveStickies(0);
+      render();
+      return document.querySelector(`[data-sticky="${n.id}"]`)?.focus();
+    }
+    case 'sticky-color': {
+      const colors = ['mustard', 'berry', 'trip', 'team', 'ok', 'accent'];
+      const n = office.stickies.find(x => x.id === el.dataset.s);
+      if (n) n.color = colors[(colors.indexOf(n.color) + 1) % colors.length];
+      saveStickies(0); break;
+    }
+    case 'del-sticky': {
+      const n = office.stickies.find(x => x.id === el.dataset.s);
+      if (n?.text.trim() && !confirm('Take this note off the board?')) return;
+      office.stickies = office.stickies.filter(x => x.id !== el.dataset.s);
+      saveStickies(0); break;
+    }
+    case 'folder-mode': {
+      hire.newFolder = el.dataset.v === 'new';
+      hire.name = $('#h-name')?.value ?? hire.name;
+      hire.folder = $('#h-folder')?.value ?? hire.folder;
+      renderHire();
+      if (!hire.newFolder) $('#h-folder')?.focus();
+      return;
+    }
+    case 'hire-go': {
+      if (!hire?.workerId) return;
+      if (hire.mode === 'deskmate') {
+        const btn = el; btn.disabled = true; btn.textContent = 'Setting up their desk…';
+        let r;
+        try { r = await api('POST', `/api/projects/${hire.projectId}/deskmate`, { workerId: hire.workerId, task: $('#h-task')?.value.trim() || '' }); }
+        catch (e) { return renderHire(); }
+        if (!find(r.project.id)) office.projects.push(r.project);
+        hire = null; renderHire();
+        toast(r.project.shared ? `${workerOf(r.project).name} joined. This project doesn't use git, so they share the folder.`
+          : `${workerOf(r.project).name} joined with their own copy, starting from the last saved (committed) version.`);
+        return openDrawer(r.project.id, 'chat');
+      }
+      if (hire.mode === 'reopen') {
+        await api('POST', `/api/projects/${hire.projectId}/reopen`, { workerId: hire.workerId });
+        const pid = hire.projectId;
+        hire = null; renderHire();
+        return openDrawer(pid, 'chat');
+      }
+      const name = $('#h-name').value.trim(), folder = $('#h-folder').value.trim();
+      if (hire.newFolder && !safeFolderName(name)) { toast('Give the project a name so the folder has one too.'); return $('#h-name').focus(); }
+      const { project } = await api('POST', '/api/projects', hire.newFolder
+        ? { workerId: hire.workerId, name, createFolder: true }
+        : { workerId: hire.workerId, name, folder });
+      if (!find(project.id)) office.projects.push(project);
+      hire = null; renderHire();
+      go('floor');
+      openDrawer(project.id, 'chat');
+      pendingFocus = '#msg';
+      renderDrawer(false);
+      return;
+    }
+    case 'add-deskmate': return openHire({ mode: 'deskmate', projectId: p.id });
+    case 'plan-toggle': {
+      planNext[p.id] = !planNext[p.id];
+      const keep = $('#msg')?.value || '';
+      renderComposer(p);
+      $('#msg').value = keep; $('#msg').focus();
+      return;
+    }
+    case 'pick-command': return pickCommand(el.dataset.c);
+    case 'undo': {
+      const w = workerOf(p);
+      const item = chat?.items.find(x => x.kind === 'user' && x.uuid === el.dataset.u);
+      const text = item?.text || '';
+      let r;
+      try { r = await api('POST', `/api/projects/${p.id}/rewind`, { uuid: el.dataset.u, dryRun: true, text }); } catch (e) { return; }
+      if (!r.canRewind) return toast(r.error ? `Can't undo from there: ${r.error}` : 'Nothing to undo from there.');
+      const files = (r.filesChanged || []).map(f => shortPath(f, p.folder));
+      if (!files.length) return toast(`${w.name} hasn't changed any files since that message.`);
+      if (!confirm(`Undo ${w.name}'s file changes since "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"?\n\n${files.length} file${files.length === 1 ? '' : 's'} go back the way they were (${r.insertions || 0} lines added and ${r.deletions || 0} removed get reversed):\n${files.slice(0, 12).join('\n')}${files.length > 12 ? '\n…' : ''}\n\nThe chat stays as it is. Changes made by commands (not file edits) aren't undone.`)) return;
+      r = await api('POST', `/api/projects/${p.id}/rewind`, { uuid: el.dataset.u, text }).catch(() => null);
+      if (r?.canRewind) toast(`Undone: ${files.length} file${files.length === 1 ? '' : 's'} put back. ${w.name} will be told on your next message.`);
+      return;
+    }
+    case 'preview': return api('POST', `/api/projects/${p.id}/preview`).catch(() => {});
+    case 'publish': {
+      el.disabled = true; el.textContent = 'Publishing…';
+      const r = await api('POST', `/api/projects/${p.id}/publish`).catch(() => null);
+      if (r?.ok) toast(`Published ${r.branch} to GitHub.`);
+      return loadChanges(p);
+    }
+    case 'pull-request': {
+      el.disabled = true; el.textContent = 'Opening…';
+      const r = await api('POST', `/api/projects/${p.id}/pull-request`).catch(() => null);
+      if (r?.url) toast(r.existed ? 'There was already a pull request. Opened it in your browser.' : 'Pull request opened in your browser.');
+      return loadChanges(p);
+    }
+    case 'ask-critter': {
+      const msgs = {
+        'setup-git': 'Please set up git for this project: start a repository, add a sensible .gitignore, and make a first commit.',
+        github: 'Please put this project on GitHub as a new private repository (use the gh command), then push it.',
+      };
+      await api('POST', `/api/projects/${p.id}/message`, { text: msgs[el.dataset.msg] }).catch(() => {});
+      return openDrawer(p.id, 'chat');
+    }
+    case 'job-toggle': patch(p, { jobs: (p.jobs || []).map(j => j.id === el.dataset.j ? { ...j, on: el.checked } : j) }); return renderDrawer(true);
+    case 'job-del': {
+      const j = (p.jobs || []).find(x => x.id === el.dataset.j);
+      if (!j || !confirm(`Delete this recurring job?\n\n${j.text}`)) return;
+      patch(p, { jobs: p.jobs.filter(x => x.id !== el.dataset.j) }); return renderDrawer(true);
+    }
+    case 'open-result': {
+      const id2 = el.dataset.id, sid = el.dataset.s, rp = find(id2);
+      if (!rp) return;
+      if (el.dataset.current === 'true' && !rp.closed) return openDrawer(id2, 'chat');
+      openDrawer(id2, 'past');
+      const i = rp.history.findIndex(h => h.sessionId === sid);
+      if (i >= 0) setTimeout(() => {
+        document.querySelector(`[data-action="read-day"][data-i="${i}"]`)?.click();
+        setTimeout(() => document.querySelector(`[data-action="read-day"][data-i="${i}"]`)?.closest('li')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300);
+      }, 50);
+      return;
+    }
+    case 'bring-back': {
+      const w = workerOf(p), home = homeOf(p);
+      el.disabled = true;
+      let r;
+      try { r = await api('POST', `/api/projects/${p.id}/bring-back`); } catch (e) { el.disabled = false; return; }
+      el.disabled = false;
+      if (r.error) return toast(r.error);
+      if (r.nothing) return toast(`${w.name} has nothing new to bring back.`);
+      if (r.clash) {
+        if (confirm(`${w.name}'s work clashes with the main project in:\n\n${r.clash.join('\n')}\n\nNothing was changed. Ask ${w.name} to sort out the clash in their copy?`)) {
+          await api('POST', `/api/projects/${p.id}/sort-clash`, { files: r.clash, target: r.target });
+          openDrawer(p.id, 'chat');
+        }
+        return;
+      }
+      toast(`${w.name}'s work is in ${home.name} now (${r.files.length} file${r.files.length === 1 ? '' : 's'}).`);
+      if (drawer.tab === 'changes') loadChanges(p);
+      return;
+    }
+    case 'send-home': {
+      const w = workerOf(p), home = homeOf(p);
+      if (!confirm(`Send ${w.name} home?\n\n${w.name} goes back to the meadow. Their past shifts stay on ${home.name}.`)) return;
+      const go2 = async force => {
+        const res = await fetch(`/api/projects/${p.id}/send-home`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Office-Token': TOKEN }, body: JSON.stringify({ force }) });
+        return res.json();
+      };
+      let r = await go2(false);
+      if (r.unmerged) {
+        if (!confirm(`${w.name} has ${r.unmerged} piece${r.unmerged === 1 ? '' : 's'} of work you haven't brought back.\n\nPress Cancel, then Bring Work Back to keep it in the project. Or press OK to send ${w.name} home anyway: the work stays saved on the branch "${r.branch}" but won't be in your project.`)) return;
+        r = await go2(true);
+      }
+      if (r.error) return toast(r.error);
+      toast(`${w.name} went home to the meadow.`);
+      return openDrawer(home.id, 'chat');
+    }
+    case 'close-project': {
+      const w = workerOf(p);
+      const mates = seatsOf(p).map(x => workerOf(x).name);
+      if (!confirm(`Close ${p.name}?\n\n${w.name}${mates.length ? ` and ${mates.join(', ')}` : ''} go${mates.length ? '' : 'es'} back to the meadow, ready for another project. This shift's chat and notes are filed under Past Shifts. You can reopen the project later.`)) return;
+      await api('POST', `/api/projects/${p.id}/close`);
+      toast(`${p.name} is closed. ${w.name} is back in the meadow.`);
+      return closeDrawer();
+    }
+    case 'stage': patch(p, { stage: +el.dataset.i }); break;
+    case 'plate': patch(p, { plate: el.dataset.v }); break;
+    case 'theme':
+      office.settings = { ...office.settings, theme: el.dataset.v };
+      applyTheme();
+      api('PUT', '/api/settings', { theme: el.dataset.v }).catch(() => {});
+      break;
+    case 'status': patch(p, { status: el.dataset.s }); break;
+    case 'perm-mode': patch(p, { permissionMode: el.dataset.v }); return;
+    case 'new-day': {
+      const w = workerOf(p);
+      const msg = p.sessionId
+        ? `Wrap up Shift ${p.day} and start Shift ${p.day + 1}?\n\n${w.name} will save their notes, put anything for you in the "${forFolder()}" folder, and send a short summary. Then a fresh chat starts.`
+        : `Start Shift ${p.day + 1} for ${w.name}?`;
+      if (!confirm(msg)) return;
+      const r = await api('POST', `/api/projects/${p.id}/new-day`, {});
+      if (r.wrapping) { toast(`${w.name} is wrapping up Shift ${p.day}…`); return openDrawer(p.id, 'chat'); }
+      chat = null;
+      openDrawer(p.id, 'chat');
+      pendingFocus = '#msg';
+      renderDrawer(false);
+      return;
+    }
+    case 'new-day-now': {
+      if (!confirm(`Skip the wrap-up and start Shift ${p.day + 1} now?`)) return;
+      await api('POST', `/api/projects/${p.id}/new-day`, { now: true });
+      return;
+    }
+    case 'open-folder': return api('POST', `/api/projects/${p.id}/open-folder`).catch(() => {});
+    case 'send': return sendMsg(p);
+    case 'add-photos': return $('#photoIn')?.click();
+    case 'rm-photo': { photoDrafts[p.id]?.splice(+el.dataset.i, 1); return renderPhotoTray(p); }
+    case 'stop': return api('POST', `/api/projects/${p.id}/stop`).catch(() => {});
+    case 'open-desktop': return api('POST', `/api/projects/${p.id}/open-desktop`).then(() => toast('Opening in the Claude desktop app…')).catch(() => {});
+    case 'open-desktop-past': return api('POST', '/api/open-desktop', { sessionId: el.dataset.s }).then(() => toast('Opening in the Claude desktop app…')).catch(() => {});
+    case 'perm': {
+      const reqId = el.dataset.req;
+      const why = document.querySelector(`[data-why="${reqId}"]`)?.value.trim();
+      el.closest('.ask')?.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      return api('POST', `/api/permissions/${reqId}`, { decision: el.dataset.d, message: why || undefined }).catch(() => {});
+    }
+    case 'perm-all': {
+      const list = waitingFor(id);
+      document.querySelectorAll('.ask').forEach(c => { if (list.some(r => r.reqId === c.dataset.req)) c.querySelectorAll('button').forEach(b => { b.disabled = true; }); });
+      for (const r of list) await api('POST', `/api/permissions/${r.reqId}`, { decision: 'allow' }).catch(() => {});
+      return;
+    }
+    case 'load-sessions':
+      sessionsList = (await api('GET', `/api/sessions?dir=${encodeURIComponent(p.folder)}`)).sessions;
+      return renderDrawer(true);
+    case 'attach':
+      await api('POST', `/api/projects/${p.id}/attach`, { sessionId: el.dataset.s });
+      p.sessionId = el.dataset.s;
+      sessionsList = null; chat = null;
+      toast('Chat attached. Open the Chat tab to see it.');
+      return renderDrawer(true);
+    case 'read-day': {
+      const dp = find(drawer.id);
+      const i = +el.dataset.i;
+      if (pastChat?.index === i) { pastChat = null; return renderDrawer(true); }
+      pastChat = { index: i, items: [], loading: true };
+      renderDrawer(true);
+      const h = dp.history[i];
+      const { items } = await api('GET', `/api/chat?session=${encodeURIComponent(h.sessionId)}&dir=${encodeURIComponent(h.folder || dp.folder)}`).catch(() => ({ items: [] }));
+      if (pastChat?.index === i) { pastChat = { index: i, items, loading: false }; renderDrawer(true); }
+      return;
+    }
+    case 'refresh-changes': return loadChanges(p);
+    case 'toggle-todo': {
+      const td = p.todos.find(x => x.id === t);
+      td.done = !td.done;
+      Object.assign(td, td.done ? { doneAt: Date.now(), doneSession: p.sessionId, doneShift: p.day } : { doneAt: null, doneSession: null, doneShift: null });
+      patch(p, { todos: p.todos }); break;
+    }
+    case 'todo-chat': {
+      // Jump to the chat a to-do was finished in: today's chat, or that shift under Past Shifts.
+      const td = p.todos.find(x => x.id === t);
+      if (!td?.doneSession) return;
+      if (td.doneSession === p.sessionId) { drawer.tab = 'chat'; chat = null; renderDrawer(true); return loadChat(p); }
+      const seat = office.projects.find(x => x.deskOf && x.sessionId === td.doneSession);
+      if (seat) return openDrawer(seat.id, 'chat');
+      const i = p.history.findIndex(h => h.sessionId === td.doneSession);
+      if (i < 0) return toast('That chat is no longer in Past Shifts.');
+      drawer.tab = 'past'; pastChat = null; renderDrawer(true);
+      document.querySelector(`[data-action="read-day"][data-i="${i}"]`)?.click();
+      setTimeout(() => document.querySelector(`[data-action="read-day"][data-i="${i}"]`)?.closest('li')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300);
+      return;
+    }
+    case 'toggle-done-list': { drawer.showDone = !drawer.showDone; return; }
+    case 'del-todo': patch(p, { todos: p.todos.filter(x => x.id !== t) }); break;
+    case 'todo-owner': {
+      const td = p.todos.find(x => x.id === t);
+      td.owner = OWNERS[(OWNERS.indexOf(td.owner) + 1) % OWNERS.length];
+      patch(p, { todos: p.todos });
+      if (drawer.id) renderDrawer(true);
+      break;
+    }
+    case 'clear-done': patch(p, { todos: p.todos.filter(x => !x.done) }); break;
+    case 'del-idea': patch(p, { ideas: p.ideas.filter(x => x.id !== t) }); break;
+    case 'promote': {
+      const idea = p.ideas.find(x => x.id === t);
+      patch(p, { todos: [...p.todos, { id: rid(), text: idea.text, done: false }], ideas: p.ideas.filter(x => x.id !== t) });
+      break;
+    }
+    case 'delete':
+      if (!confirm(`Delete ${p.name} for good? Its to-dos, ideas and day history go too. The chats themselves stay in Claude Code.`)) return;
+      await api('DELETE', `/api/projects/${p.id}`);
+      return closeDrawer();
+    case 'export': return exportData();
+    case 'import-local': {
+      const data = JSON.parse(localStorage.getItem('agentOffice.v1'));
+      await api('POST', '/api/import', { office: data });
+      try { localStorage.setItem('agentOffice.v1.imported', localStorage.getItem('agentOffice.v1')); localStorage.removeItem('agentOffice.v1'); } catch (e) {}
+      return toast('Cubicles moved in. Pick a folder for each one to start chatting.');
+    }
+    case 'enable-alerts': return Notification.requestPermission().then(render);
+    case 'test-alert': window.webkit?.messageHandlers?.office?.postMessage({ kind: 'test-alert' }); return toast('Test alert sent. Switch to another app to see it in a few seconds.');
+    default: return;
+  }
+  render();
+  if (drawer.id) renderDrawer(false);
+});
+
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.id === 'msg') return autosize(el);
+  if (el.id === 'h-name' && $('#h-newpath')) { $('#h-newpath').textContent = newFolderPreview(el.value); return; }
+  if (el.dataset.sticky) {
+    const n = office.stickies.find(x => x.id === el.dataset.sticky);
+    if (n) { n.text = el.value; saveStickies(); }
+    return;
+  }
+  if (el.dataset.worker) {
+    const w = findWorker(el.dataset.worker);
+    if (w) renameWorker(w, el.value);
+    return;
+  }
+  const f = el.dataset.field;
+  if (f && drawer.id) {
+    patch(find(drawer.id), { [f]: el.value }, { wait: 500 });
+    $('#app').innerHTML = view === 'boss' ? renderBoss() : view === 'meadow' ? renderMeadow() : view === 'settings' ? renderSettings() : view === 'search' ? renderSearch() : renderFloor();
+  } else if (el.id === 'wb') {
+    office.whiteboard = el.value;
+    clearTimeout(patchTimers.wb);
+    patchTimers.wb = setTimeout(() => api('PUT', '/api/whiteboard', { text: el.value }).catch(() => {}), 500);
+  }
+});
+
+document.addEventListener('change', e => {
+  const el = e.target;
+  const p = drawer.id && find(drawer.id);
+  if (el.id === 'f-folder' && p) {
+    const folder = el.value.trim();
+    if (folder === p.folder) return;
+    api('PATCH', `/api/projects/${p.id}`, { folder }).then(() => {
+      p.folder = folder; p.sessionId = null; chat = null; sessionsList = null;
+      renderDrawer(true);
+      toast('Folder set. The next message starts a fresh chat there.');
+    }).catch(() => { el.value = p.folder; });
+  } else if (el.dataset.setting) {
+    const k = el.dataset.setting, v = el.value.trim(), was = office.settings?.[k] || '';
+    if (v === was) return;
+    api('PUT', '/api/settings', { [k]: v }).then(r => {
+      office.settings = r.settings;
+      if (k === 'name' && $('#s-name-hint')) $('#s-name-hint').innerHTML = nameHint();
+      toast(k === 'name' ? (v ? `Hi, ${ownerName()}! Critters will call you that from their next shift.` : 'Critters will call you the Boss.') : `New projects will go in ${projectsRoot()}.`);
+    }).catch(() => { el.value = was; });
+  } else if (el.dataset.voice) {
+    const vw = findWorker(el.dataset.voice);
+    if (vw) {
+      vw.personality = el.value;
+      api('PATCH', `/api/workers/${vw.id}`, { personality: el.value }).then(() =>
+        toast(`${vw.name}: ${VOICES.find(v => v[0] === el.value)[1]}, from their next message.`)).catch(() => {});
+    }
+  } else if (el.dataset.freedom) {
+    const fp = find(el.dataset.freedom);
+    if (fp) { patch(fp, { permissionMode: el.value }); toast(`${workerOf(fp).name}: ${approvalName(el.value)}.`); }
+  } else if (el.dataset.effort) {
+    const ep = find(el.dataset.effort);
+    if (ep) { patch(ep, { effort: el.value }); toast(`${workerOf(ep).name}: ${EFFORTS.find(x => x[0] === el.value)[1]} effort.`); }
+  } else if (el.dataset.model) {
+    const mp = find(el.dataset.model);
+    if (mp) { patch(mp, { model: el.value }); toast(`${workerOf(mp).name} will use ${modelName(el.value)} from their next message.`); }
+  } else if (el.id === 'f-chrome-free' && p) {
+    patch(p, { chromeFree: el.checked });
+  } else if (el.id === 'f-chrome' && p) {
+    patch(p, { useChrome: el.checked });
+  } else if (el.dataset.worker) {
+    render();
+  }
+});
+
+// Photos: the picker, pasting into the message box, or dropping onto the cubicle drawer.
+document.addEventListener('change', e => {
+  if (e.target.id !== 'photoIn') return;
+  addPhotos(find(drawer.id), e.target.files);
+  e.target.value = '';
+});
+document.addEventListener('paste', e => {
+  if (e.target.id !== 'msg') return;
+  const files = [...(e.clipboardData?.files || [])];
+  if (!files.length) return;
+  e.preventDefault();
+  addPhotos(find(drawer.id), files);
+});
+// A photo dropped anywhere else shouldn't make the page open the file instead.
+for (const t of ['dragover', 'drop']) document.addEventListener(t, e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault(); });
+const drawerEl = document.getElementById('drawer');
+const canDrop = e => drawer.id && find(drawer.id)?.folder && !find(drawer.id)?.closed && [...(e.dataTransfer?.types || [])].includes('Files');
+drawerEl.addEventListener('dragover', e => { if (!canDrop(e)) return; e.preventDefault(); drawerEl.classList.add('dropping'); });
+drawerEl.addEventListener('dragleave', e => { if (!drawerEl.contains(e.relatedTarget)) drawerEl.classList.remove('dropping'); });
+drawerEl.addEventListener('drop', e => {
+  drawerEl.classList.remove('dropping');
+  if (!canDrop(e)) return;
+  e.preventDefault();
+  if (drawer.tab !== 'chat') openDrawer(drawer.id, 'chat');
+  addPhotos(find(drawer.id), e.dataTransfer.files);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'msg' && slash.open && slash.items.length && ['ArrowDown', 'ArrowUp', 'Tab', 'Enter', 'Escape'].includes(e.key)) {
+    e.preventDefault();
+    if (e.key === 'Escape') return closeSlash();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { slash.sel = (slash.sel + (e.key === 'ArrowDown' ? 1 : -1) + slash.items.length) % slash.items.length; return updateSlash(); }
+    return pickCommand(slash.items[slash.sel].name);
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (drawer.id) closeDrawer();
+    go('search');
+    return setTimeout(() => $('#searchQ')?.focus(), 0);
+  }
+  if (e.target.id === 'msg' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    const p = find(drawer.id);
+    if (p) sendMsg(p);
+  } else if (e.key === 'Escape') {
+    if (hire) { hire = null; renderHire(); }
+    else if (drawer.id && !document.querySelector('#tray .ask:focus-within')) closeDrawer();
+  } else if (e.key === 'Enter' && (e.target.id === 'setup-name' || e.target.id === 'setup-root')) {
+    e.preventDefault();
+    finishSetup();
+  } else if (e.key === 'Enter' && hire && (e.target.id === 'h-name' || e.target.id === 'h-folder')) {
+    e.preventDefault();
+    document.querySelector('[data-action="hire-go"]')?.click();
+  }
+});
+
+document.addEventListener('submit', async e => {
+  e.preventDefault();
+  const form = e.target;
+  if (form.dataset.form === 'save') {
+    const sp = find(form.dataset.id), btn = form.querySelector('button');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const r = await api('POST', `/api/projects/${sp.id}/save`, { message: form.querySelector('input').value.trim() }).catch(() => null);
+    if (r?.ok) toast('Saved a version.');
+    return loadChanges(sp);
+  }
+  if (form.dataset.form === 'job') {
+    const jp = find(form.dataset.id), text = form.querySelector('input.field').value.trim();
+    if (!jp || !text) return;
+    const job = { text, every: form.every.value, weekday: +form.weekday.value, time: form.time.value || '09:00', on: true };
+    patch(jp, { jobs: [...(jp.jobs || []), job] });
+    renderDrawer(true);
+    return toast(`Job added: ${jobWhen(job)}.`);
+  }
+  const input = form.querySelector('input.field');
+  const text = input.value.trim();
+  const p = find(form.dataset.id);
+  if (!text || !p) return;
+  if (form.dataset.form === 'todo') {
+    const owner = form.querySelector('input[type=radio]:checked')?.value || 'critter';
+    patch(p, { todos: [...p.todos, { id: rid(), text, done: false, owner }] });
+  }
+  else patch(p, { ideas: [...p.ideas, { id: rid(), text }] });
+  const where = form.closest('#drawer') ? '#drawer' : '#app';
+  pendingFocus = `${where} form[data-form="${form.dataset.form}"][data-id="${p.id}"] input`;
+  $('#app').innerHTML = '';
+  render();
+  if (drawer.id) renderDrawer(true);
+});
+
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') { hire = null; renderHire(); } });
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(office, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `agent-office-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('#importFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.projects)) throw new Error('No projects list in that file.');
+    if (!confirm(`Replace the whole office with ${data.projects.length} project(s) from "${file.name}"?`)) return;
+    await api('POST', '/api/import', { office: data });
+    closeDrawer();
+  } catch (err) { toast('Could not import that file: ' + err.message); }
+});
+
+render();
+if (ONLINE) connect();
+setInterval(() => { if (!drawer.id && !hire && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) render(); }, 60000);
+</script>
+</body>
+</html>

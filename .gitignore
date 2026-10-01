@@ -1,0 +1,19 @@
+# Personal data and secrets: never commit
+office.json
+office.json.tmp
+.office-token
+
+# Installed packages and system files
+node_modules/
+.DS_Store
+
+# Files passed between you and your critters
+From Megan/
+For Megan/
+For the Boss/
+From the Boss/
+
+# Your own Claude Code settings and desk mates' copies
+.claude/settings.local.json
+.claude/worktrees/
+.claude/.cc-writes/
