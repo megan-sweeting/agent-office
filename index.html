@@ -158,7 +158,7 @@
   .floor-bar { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
   .floor-bar .chips { margin: 0; flex: 1; }
   .floor-sort { display: flex; align-items: center; gap: 8px; margin-left: auto; font-weight: 700; font-size: 14px; color: var(--muted); }
-  .floor-sort .field { width: auto; padding: 6px 10px; }
+  .floor-sort .field { width: auto; padding: 6px 36px 6px 12px; }
   .chip { padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 14px; background: var(--c-bg); color: var(--c); }
 
   /* Cubicles */
@@ -399,6 +399,12 @@
   .field { width: 100%; border: 2px solid var(--line); border-radius: 14px; padding: 9px 12px; background: var(--paper); }
   textarea.field { resize: vertical; min-height: 70px; }
   .field:focus { outline: none; border-color: var(--moss); }
+  /* Our own arrow on dropdowns: the browser's sits tight against the rounded edge. */
+  select.field { appearance: none; -webkit-appearance: none; padding-right: 38px; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 21px) 50%, calc(100% - 16px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+  /* Same breathing room for the arrow on folder suggestions and the clock on time boxes. */
+  .field::-webkit-calendar-picker-indicator { margin-right: 6px; cursor: pointer; }
   .label { font-size: 13px; color: var(--muted); font-weight: 700; margin: 12px 0 4px; display: block; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .muted { color: var(--muted); font-size: 13px; }
