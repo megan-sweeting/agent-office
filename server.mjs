@@ -901,8 +901,9 @@ setInterval(() => {
 }, 60 * 1000);
 
 /* ---------------- Usage ---------------- */
-// Plan limits, from two places: Claude's own rate-limit updates that arrive while critters work
-// (these include reset times), and the desktop app's usage samples (updated while it runs).
+// Plan limits, from three places: a check that asks Claude Code for the plan's usage (checkPlanUsage),
+// Claude's own rate-limit updates that arrive while critters work (these include reset times), and the
+// desktop app's usage samples (only every few hours). The newest reading wins.
 const planLimits = {}; // rateLimitType -> { pct, resetsAt, status, at }
 const PLAN_FILE = path.join(HOME, 'Library', 'Application Support', 'Claude', 'plan-usage-history.json');
 
@@ -912,7 +913,43 @@ function notePlanLimit(info) {
   if (typeof pct === 'number' && pct <= 1.5) pct = pct * 100;
   let resetsAt = info.resetsAt;
   if (resetsAt && resetsAt < 1e12) resetsAt *= 1000;
-  planLimits[info.rateLimitType] = { pct: typeof pct === 'number' ? Math.round(pct) : null, resetsAt: resetsAt || null, status: info.status, at: Date.now() };
+  const prev = planLimits[info.rateLimitType];
+  // An update without a percentage keeps the last one, rather than falling back to an older desktop sample.
+  planLimits[info.rateLimitType] = typeof pct === 'number'
+    ? { pct: Math.round(pct), resetsAt: resetsAt || null, status: info.status, at: Date.now() }
+    : { pct: prev?.pct ?? null, resetsAt: resetsAt || prev?.resetsAt || null, status: info.status, at: prev?.at || Date.now() };
+}
+
+// Ask Claude Code for the plan's usage right now (about a second, no tokens). Uses a working critter's
+// claude when there is one, otherwise a short-lived one that never gets a message.
+// The SDK marks this call experimental, so any failure just leaves the other readings in place.
+const USAGE_EVERY = 5 * 60 * 1000;
+let usageCheck = null, usageCheckedAt = 0, usageCheckError = null;
+function checkPlanUsage() {
+  if (usageCheck) return usageCheck;
+  usageCheck = (async () => {
+    let q = [...workers.values()].find(w => w.q)?.q, close = null;
+    if (!q) {
+      if (!CLAUDE_BIN) throw new Error('Could not find the claude command.');
+      let release; const idle = new Promise(r => { release = r; });
+      q = query({ prompt: (async function* () { await idle; })(), options: { pathToClaudeCodeExecutable: CLAUDE_BIN, cwd: os.tmpdir(), settingSources: [], env: WORKER_ENV } });
+      close = () => { release(); try { q.close(); } catch {} };
+    }
+    try {
+      const u = await Promise.race([q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }),
+        new Promise((_, no) => setTimeout(() => no(new Error('Claude took too long to answer.')), 30000))]);
+      if (!u?.rate_limits_available || !u.rate_limits) throw new Error('Plan limits only show for a Claude plan login, not an API key.');
+      const now = Date.now();
+      for (const type of ['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet']) {
+        const r = u.rate_limits[type];
+        if (typeof r?.utilization !== 'number') continue;
+        planLimits[type] = { pct: Math.round(r.utilization), resetsAt: Date.parse(r.resets_at) || null, status: planLimits[type]?.status || null, at: now };
+      }
+      usageCheckError = null;
+    } finally { close?.(); }
+  })().catch(e => { usageCheckError = firstLine(e.message); })
+    .finally(() => { usageCheckedAt = Date.now(); usageCheck = null; });
+  return usageCheck;
 }
 
 function planUsage() {
@@ -992,7 +1029,7 @@ function usageReport() {
     // context: the size of this shift's chat right now. Every message re-sends it, so it's what makes a long shift pricey.
     return { id: p.id, today: sum(today), fiveHour: sum(all, H5), week: sum(all, W), total: sum(all), context: today.at(-1)?.context || 0 };
   });
-  return { plan: planUsage(), projects, at: now };
+  return { plan: planUsage(), projects, at: now, checkError: usageCheckError };
 }
 
 // While a chat is in the desktop app, watch its file. Once the desktop has replied and gone
@@ -1510,7 +1547,12 @@ const server = http.createServer(async (req, res) => {
     if (a === 'chat' && m === 'GET') {
       return send(res, 200, { items: await readChat(url.searchParams.get('session'), url.searchParams.get('dir')) });
     }
-    if (a === 'usage' && m === 'GET') return send(res, 200, usageReport());
+    if (a === 'usage' && m === 'GET') {
+      // ?fresh=1 is the Check button. Otherwise refresh in the background every few minutes while the office is open.
+      if (url.searchParams.get('fresh')) await checkPlanUsage();
+      else if (Date.now() - usageCheckedAt > USAGE_EVERY) checkPlanUsage();
+      return send(res, 200, usageReport());
+    }
     if (a === 'search' && m === 'GET') {
       const q = String(url.searchParams.get('q') || '').trim();
       return send(res, 200, { results: q.length < 2 ? [] : searchChats(q.slice(0, 100)) });

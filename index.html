@@ -287,6 +287,7 @@
   .burrow-usage { margin-top: 6px !important; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .burrow-usage .meter { width: 90px; }
   .panel.usage { margin-bottom: 22px; border-color: var(--moss); }
+  .usage-check { display: flex; align-items: center; gap: 10px; }
   .usage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .limits { display: grid; gap: 10px; margin: 12px 0 6px; }
   .limit { display: grid; grid-template-columns: 130px minmax(120px, 1fr) 48px auto; gap: 12px; align-items: center; }
@@ -1130,12 +1131,21 @@ const TOOL_VERBS = { Bash: 'run a command', Edit: 'edit a file', MultiEdit: 'edi
 /* ---------- Usage ---------- */
 let usage = null;
 let guardLog = [];
-async function fetchUsage() {
+let usageChecking = false;
+async function fetchUsage(fresh = false) {
   if (!ONLINE) return;
   try {
-    const r = await fetch('/api/usage', { headers: { 'X-Office-Token': TOKEN } });
+    const r = await fetch(`/api/usage${fresh ? '?fresh=1' : ''}`, { headers: { 'X-Office-Token': TOKEN } });
     if (r.ok) { usage = await r.json(); if (view === 'floor' || view === 'boss') render(); }
   } catch (e) {}
+}
+// The Check button: ask Claude for the plan's usage right now.
+async function checkUsage() {
+  if (usageChecking) return;
+  usageChecking = true; render();
+  await fetchUsage(true);
+  usageChecking = false; render();
+  if (usage?.checkError) toast(`Couldn't get a fresh reading: ${usage.checkError}`);
 }
 if (!SHOTTING) setInterval(fetchUsage, 60000);
 const fmtTok = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n || 0);
@@ -1151,7 +1161,7 @@ function meterHTML(pct) {
   return `<span class="meter ${levelOf(v)}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}"><i style="width:${v}%"></i></span>`;
 }
 function limitRow(label, lim) {
-  if (!lim || lim.pct == null) return `<div class="limit"><b>${label}</b><span class="muted">No reading yet. It shows up once the desktop app or a critter checks in.</span></div>`;
+  if (!lim || lim.pct == null) return `<div class="limit"><b>${label}</b><span class="muted">No reading yet. Press Check to get one.</span></div>`;
   return `<div class="limit"><b>${label}</b>${meterHTML(lim.pct)}<span class="pct">${lim.pct}%</span><span class="muted">${resetText(lim.resetsAt)}</span></div>`;
 }
 function usagePanel() {
@@ -1172,7 +1182,8 @@ function usagePanel() {
   return `
   <section class="panel usage">
     <div class="usage-head"><h3>Claude usage</h3>
-      <span class="muted">${plan.fiveHour.at ? `Plan reading ${ago(plan.fiveHour.at)}` : ''}</span></div>
+      <span class="usage-check"><span class="muted">${plan.fiveHour.at ? `Plan reading ${ago(plan.fiveHour.at)}` : ''}</span>
+        <button class="btn small" data-action="check-usage" ${usageChecking ? 'disabled' : ''}>${usageChecking ? 'Checking…' : 'Check'}</button></span></div>
     <div class="limits">
       ${limitRow('5-hour window', plan.fiveHour)}
       ${limitRow('This week', plan.week)}
@@ -3156,6 +3167,7 @@ document.addEventListener('click', async e => {
       toast(`${p.name} was deleted. Its folder is still on your Mac.`);
       return closeDrawer();
     }
+    case 'check-usage': return checkUsage();
     case 'export': return exportData();
     case 'import-local': {
       const data = JSON.parse(localStorage.getItem('agentOffice.v1'));
