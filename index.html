@@ -1375,7 +1375,7 @@ const TOURS = {
     { at: '#drawer .plan-btn', title: 'Plan First', text: n => `For bigger jobs, turn on Plan First before you send. ${n} looks around, writes a plan, and waits for your OK before changing anything.` },
     { at: '#dTabs [data-t="todos"]', title: 'To-Dos', text: n => `This project's to-do list. Each to-do says who it's for: ${n}, you, or both of you together. ${n} ticks theirs off when they're done.` },
     { at: '#dTabs [data-t="details"]', title: 'Details', text: n => `The project's folder, today's task, where ${n} left off, and how much freedom they have before they must ask you. Close Project lives here too, for when the work is finished.` },
-    { at: '#dTabs [data-t="changes"]', title: 'Changes', text: n => `Every file ${n} changed. If the project uses git, you can save versions and publish to GitHub here. Don't like a change? Press Undo From Here under your message in the chat.` },
+    { at: '#dTabs [data-t="changes"]', title: 'Changes', text: n => `Every file ${n} changed. If the project uses git, you can save versions and publish to GitHub here. Don't like a change? Hover over your message in the chat and press Undo From Here. That works with or without git.` },
     { at: '#drawer [data-action="new-day"]', title: 'New Shift', text: n => `Each chat is one shift. When a job is done, press New Shift: ${n} writes a summary and starts a fresh chat. Old chats live under Past Shifts. Long chats use more of your plan, so fresh shifts are cheaper.` },
     { at: '#dTabs [data-t="log"]', title: 'Work Log', text: n => `The chat shows the conversation. The Work Log shows every step behind it: the files ${n} read, the commands they ran and what came back. Handy when something looks odd.` },
     { at: '#drawer [data-action="add-deskmate"]', title: 'Desk mates', text: n => `Need more hands? Add a Desk Mate and a second critter works on this project at the same time, with their own chat. If the project uses git they get their own copy, and Bring Work Back adds their work in.` },
@@ -1860,7 +1860,7 @@ const PRACTICE_STEPS = [
   ['sent', 'Send the first message', n => 'Your first message is already typed below. Have a read, then press Send.'],
   ['approved', 'Approve a change', n => `${n} will ask before saving the menu. Read the card in the chat, then press Allow.`],
   ['looked', 'See your menu', n => `When ${n} says it's done, press Open the Menu to see it in your browser.`],
-  ['undo', 'Change it, then undo', n => `Ask ${n} to add a dessert. Once it's in, press Undo From Here under that message to put the menu back.`],
+  ['undo', 'Change it, then undo', n => `Ask ${n} to add a dessert. Once it's in, hover over that message and press Undo From Here under it to put the menu back. This works without git: the office keeps its own copy of each file before ${n} changes it.`],
   ['shift', 'Start a New Shift', n => `Press New Shift at the top. ${n} writes a short summary of today and starts a fresh chat.`],
   ['closed', 'Close the project', n => `Last one! Open Details and press Close Project. ${n} heads back to the Meadow.`],
 ];
@@ -2321,7 +2321,7 @@ function changesHTML(p) {
   const w = workerOf(p);
   if (changes.noFolder) return '<p class="muted">Pick a project folder under Details first.</p>';
   if (changes.notRepo) return `<p>This folder isn't tracked with git, so there's no overall diff to show and no way to save versions or publish.</p>
-    <p class="muted">Every edit still shows as a red and green diff inside the chat.</p>
+    <p class="muted">Every edit still shows as a red and green diff inside the chat, and Undo From Here under your messages still works without git.</p>
     <button class="btn small accent" data-action="ask-critter" data-id="${p.id}" data-msg="setup-git">Ask ${esc(w.name)} to Set Up Git</button> ${refresh}`;
   const waiting = p.worktree && changes.waiting?.length ? `<div class="waiting">
     <h4>Saved, not brought back yet</h4>
