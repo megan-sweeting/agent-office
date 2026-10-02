@@ -368,6 +368,8 @@
   .sheet.setup .label, .sheet.setup .field, .sheet.setup .hint { text-align: left; }
   .sheet.setup .hint { margin: 6px 0 0; font-size: 13px; }
   .sheet.setup .actions { justify-content: center; }
+  .sheet.pick-sheet { width: min(460px, 100%); }
+  .wait-note { margin: 2px 0 0 28px; font-size: 13px; }
 
   /* First-time tour: the fox spotlights one part of the office at a time. */
   #tour { position: fixed; inset: 0; z-index: 35; --dim: rgba(30, 36, 24, .55); }
@@ -948,6 +950,47 @@ async function api(method, url, body) {
   return data;
 }
 
+// A small question with named buttons: the Mac app's own confirm box only has OK and Cancel.
+// buttons: [[value, label, class]]. Resolves with the value, or null for Escape or a click outside.
+let choice = null;
+function choose(title, text, buttons) {
+  choice?.(null);
+  return new Promise(resolve => {
+    const m = $('#modal');
+    choice = v => { choice = null; m.classList.remove('open'); m.innerHTML = ''; resolve(v); };
+    m.innerHTML = `<div class="sheet pick-sheet" role="dialog" aria-labelledby="modalTitle"><h2 id="modalTitle">${esc(title)}</h2><p class="sub">${esc(text)}</p>
+      <div class="actions">${buttons.map(([v, label, cls]) => `<button class="btn ${cls || ''}" data-choice="${v}">${esc(label)}</button>`).join('')}</div></div>`;
+    m.classList.add('open');
+    setTimeout(() => m.querySelector('.btn.primary')?.focus(), 0);
+  });
+}
+
+// Chrome is switched on or off when a critter starts, so changing it restarts them. Ask first
+// rather than quietly cancelling a question they're waiting on, or cutting a step short.
+const chromeWait = new Map();  // projectId -> Chrome on/off, once the step in progress finishes
+async function setChrome(p, el) {
+  const on = el.checked, name = workerOf(p).name, onOff = on ? 'on' : 'off', OnOff = on ? 'On' : 'Off';
+  let when = 'now';
+  if ([...perms.values()].some(r => r.projectId === p.id)) {
+    const v = await choose(`${name} is waiting for your answer.`, `Turning Chrome ${onOff} restarts ${name} and cancels the question.`,
+      [['answer', 'Answer First', 'primary'], ['now', `Turn ${OnOff} Anyway`, 'warn']]);
+    if (v !== 'now') { el.checked = !on; if (v === 'answer') openDrawer(p.id, 'chat'); return; }
+  } else if (busy.has(p.id)) {
+    const v = await choose(`${name} is in the middle of something.`,
+      `Chrome can turn ${onOff} when ${name} finishes, or right now (which stops the current step; ${name} picks up from the chat).`,
+      [['afterTurn', `When ${name} Finishes`, 'primary'], ['now', 'Right Now']]);
+    if (!v) { el.checked = !on; return; }
+    when = v;
+  }
+  p.useChrome = on;
+  const r = await api('PATCH', `/api/projects/${p.id}`, { useChrome: on, when }).catch(() => null);
+  if (!r) return;
+  if (r.waitingForTurn) chromeWait.set(p.id, on); else chromeWait.delete(p.id);
+  if (r.cancelledRequests?.length) toast(`Chrome is ${onOff}. ${r.cancelledRequests.includes('ExitPlanMode') ? `${name}'s plan comes back in a moment.` : `${name} will ask again in a moment.`}`);
+  else if (r.stoppedMidStep) toast(`Chrome is ${onOff}. ${name} picks up from the chat with your next message.`);
+  if (drawer.id === p.id && drawer.tab === 'details') renderDrawer(true);
+}
+
 const patchTimers = {};
 function patch(p, fields, { wait = 0 } = {}) {
   Object.assign(p, fields);
@@ -1294,6 +1337,7 @@ function renderMeadow() {
 }
 
 function renderHire() {
+  if (choice && !hire) return;  // a question is showing in the modal
   const m = $('#modal');
   if (!hire && needsSetup()) return renderSetup(m);
   if (!hire) { m.classList.remove('open'); m.innerHTML = ''; return; }
@@ -2350,7 +2394,8 @@ function detailsHTML(p) {
     <label class="radio"><input type="checkbox" id="f-chrome" ${p.useChrome ? 'checked' : ''}>
       <span>Let ${esc(w.name)} use Claude in Chrome<small>Works in your real Chrome, so you can watch there. Needs the Claude in Chrome extension.</small></span></label>
     ${p.useChrome && ['free', 'auto'].includes(p.permissionMode) ? `<label class="radio"><input type="checkbox" id="f-chrome-free" ${p.chromeFree !== false ? 'checked' : ''}>
-      <span>Use Chrome without asking<small>${esc(w.name)} can click, type and read pages in Chrome without a "May I?" each time.</small></span></label>` : ''}`}
+      <span>Use Chrome without asking<small>${esc(w.name)} can click, type and read pages in Chrome without a "May I?" each time.</small></span></label>` : ''}
+    ${chromeWait.has(p.id) ? `<p class="muted wait-note">Chrome turns ${chromeWait.get(p.id) ? 'on' : 'off'} when ${esc(w.name)} finishes this step.</p>` : ''}`}
 
     <div class="danger-zone">
       ${p.closed ? `<button class="btn primary" data-action="reopen" data-id="${p.id}">Reopen Project</button>
@@ -2384,6 +2429,7 @@ function mateDetailsHTML(p) {
     <h3>Browser</h3>
     <label class="radio"><input type="checkbox" id="f-chrome" ${p.useChrome ? 'checked' : ''}>
       <span>Let ${esc(w.name)} use Claude in Chrome<small>Works in your real Chrome, so you can watch there. Needs the Claude in Chrome extension.</small></span></label>
+    ${chromeWait.has(p.id) ? `<p class="muted wait-note">Chrome turns ${chromeWait.get(p.id) ? 'on' : 'off'} when ${esc(w.name)} finishes this step.</p>` : ''}
 
     <div class="danger-zone">
       <button class="btn warn" data-action="send-home" data-id="${p.id}">Send ${esc(w.name)} Home</button>
@@ -2702,8 +2748,9 @@ function connect() {
       const was = busy.has(ev.id);
       ev.busy ? busy.add(ev.id) : busy.delete(ev.id);
       if (was && !ev.busy) notify(ev.id, 'has something for you');
+      const waited = !ev.busy && chromeWait.delete(ev.id);  // the step finished, so the Chrome change is in
       render();
-      if (drawer.id === ev.id) renderDrawer(false);
+      if (drawer.id === ev.id) renderDrawer(waited && drawer.tab === 'details');
     } else if (ev.type === 'permission') {
       perms.set(ev.req.reqId, ev.req);
       const ap = find(ev.req.projectId), aw = workerOf(ap);
@@ -3200,7 +3247,7 @@ document.addEventListener('change', e => {
   } else if (el.id === 'f-chrome-free' && p) {
     patch(p, { chromeFree: el.checked });
   } else if (el.id === 'f-chrome' && p) {
-    patch(p, { useChrome: el.checked });
+    setChrome(p, el);
   } else if (el.dataset.worker) {
     render();
   }
@@ -3263,7 +3310,8 @@ document.addEventListener('keydown', e => {
     const p = find(drawer.id);
     if (p) sendMsg(p);
   } else if (e.key === 'Escape') {
-    if (hire) { hire = null; renderHire(); }
+    if (choice) choice(null);
+    else if (hire) { hire = null; renderHire(); }
     else if (drawer.id && !document.querySelector('#tray .ask:focus-within')) closeDrawer();
   } else if (e.key === 'Enter' && (e.target.id === 'setup-name' || e.target.id === 'setup-root')) {
     e.preventDefault();
@@ -3308,7 +3356,11 @@ document.addEventListener('submit', async e => {
   if (drawer.id) renderDrawer(true);
 });
 
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') { hire = null; renderHire(); } });
+$('#modal').addEventListener('click', e => {
+  const c = e.target.closest('[data-choice]');
+  if (c) return choice?.(c.dataset.choice);
+  if (e.target.id === 'modal') { if (choice) return choice(null); hire = null; renderHire(); }
+});
 
 function exportData() {
   const blob = new Blob([JSON.stringify(office, null, 2)], { type: 'application/json' });

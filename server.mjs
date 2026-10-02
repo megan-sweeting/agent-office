@@ -250,6 +250,10 @@ function broadcast(ev) {
 setInterval(() => { for (const res of clients) res.write('data: {"type":"ping"}\n\n'); }, 20000);
 
 /* ---------------- Chat normalizing ---------------- */
+// The office's note to a critter after a Chrome change cancelled a question (see restartForChrome).
+// It stays hidden, but the chat shows a short line for it.
+const CHROME_NOTE = /^<system-reminder>The boss changed your settings \(Chrome is now (on|off)\), which restarted you and cancelled/;
+const chromeLine = (onOff, plan) => `Restarted to turn Chrome ${onOff}. ${plan ? 'The plan question was asked again.' : 'The question was cancelled and will be asked again.'}`;
 const NOISE = /^\s*(<system-reminder>|<command-|<local-command|<task-notification|Caveat: The messages below)/;
 function resultContent(c) {
   let text = '';
@@ -290,7 +294,9 @@ function normalize(m, { live = false } = {}) {
     const userItem = t => /^\[Request interrupted by user/.test(t) ? { kind: 'system', text: 'Stopped.' } : { kind: 'user', uuid: m.uuid, ...splitNote(t), images: [] };
     if (typeof c === 'string') { if (!live && !NOISE.test(c)) out.push(userItem(c)); }
     else for (const b of c || []) {
-      if (b.type === 'text' && !live && !NOISE.test(b.text)) out.push(userItem(b.text));
+      const chrome = b.type === 'text' && !live && b.text.match(CHROME_NOTE);
+      if (chrome) out.push({ kind: 'system', text: chromeLine(chrome[1], b.text.includes('ExitPlanMode again')) });
+      else if (b.type === 'text' && !live && !NOISE.test(b.text)) out.push(userItem(b.text));
       else if (b.type === 'image' && !live && b.source?.type === 'base64') {
         const last = out.findLast(x => x.kind === 'user');
         if (last && last.images.length < MAX_PHOTOS) last.images.push(`data:${b.source.media_type};base64,${b.source.data}`);
@@ -802,7 +808,7 @@ function startWorker(p, { mode } = {}) {
   w.q = q;
   workers.set(p.id, w);
 
-  (async () => {
+  w.done = (async () => {
     try {
       for await (const m of q) handleMessage(p.id, w, m);
     } catch (e) {
@@ -1058,6 +1064,44 @@ function restartWhenIdle() {
   server.closeAllConnections?.();
 }
 
+// Chrome is switched on or off when claude starts, so the critter needs a fresh start to pick it up.
+// when 'afterTurn': wait for the step in progress to finish. Otherwise restart now; a question the
+// boss hadn't answered yet is cancelled and asked again, and a step cut short carries on next message.
+function restartForChrome(p, when) {
+  const w = workers.get(p.id);
+  const result = { restartedNow: false, waitingForTurn: false, cancelledRequests: [] };
+  if (!w) return result;
+  const asks = [...pending.values()].filter(x => x.req.projectId === p.id).map(x => x.req.toolName);
+  if (when === 'afterTurn' && w.active) {
+    w.restartAfterTurn = true;
+    return { ...result, waitingForTurn: true };
+  }
+  const midStep = w.active;
+  stopWorker(p.id);
+  const onOff = p.useChrome ? 'on' : 'off';
+  const name = workerName(p);
+  const said = `The boss changed your settings (Chrome is now ${onOff}), which restarted you`;
+  if (asks.length) {
+    const plan = asks.includes('ExitPlanMode');
+    const others = asks.filter(t => t !== 'ExitPlanMode');
+    const note = `${said} and cancelled your ${asks.join(' and ')} request before they answered. Nothing was approved. ` +
+      (plan ? 'You are back in plan mode: call ExitPlanMode again with your plan so the boss can review it. ' : '') +
+      (others.length ? 'Carry on from where you were: if you still need it, ask again.' : 'Do not change anything until the boss approves the plan.');
+    broadcast({ type: 'chat', id: p.id, items: [{ kind: 'system', text: chromeLine(onOff, plan) }] });
+    // Wait for the old claude to wind down first, so its last "not busy" doesn't land after the new start.
+    w.done.then(() => {
+      const cur = find(p.id);
+      if (!cur || cur.closed) return;
+      if (workers.get(p.id)) cur.resumeNote = note;  // the boss already wrote again: tell them with that message
+      else sendMessage(cur, note, [], { plan, hidden: true });
+    });
+  } else if (midStep) {
+    p.resumeNote = `${said} in the middle of a step. Check what was finished and carry on from where you were.`;
+    broadcast({ type: 'chat', id: p.id, items: [{ kind: 'system', text: `Restarted to turn Chrome ${onOff}. ${name} picks up from here with your next message.` }] });
+  }
+  return { ...result, restartedNow: true, stoppedMidStep: midStep && !asks.length, cancelledRequests: asks };
+}
+
 function stopWorker(id) {
   const w = workers.get(id);
   if (!w) return;
@@ -1191,14 +1235,17 @@ function sendMessage(p, text, files = [], opts = {}) {
     const note = files.length ? `\n\n${FILE_NOTE} ${files.map(x => `"${x.rel}"`).join(', ')})` : '';
     const images = files.filter(x => x.view).map(x => ({ type: 'image', source: { type: 'base64', media_type: x.viewType, data: x.view } }));
     const pdfs = files.filter(x => x.pdf).map(x => ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: x.pdf }, title: x.name }));
-    const undoNote = p.undoNote ? [{ type: 'text', text: `<system-reminder>${p.undoNote}</system-reminder>` }] : [];
+    const undoNote = [p.undoNote, p.resumeNote].filter(Boolean).map(t => ({ type: 'text', text: `<system-reminder>${t}</system-reminder>` }));
     const planNote = opts.plan ? [{ type: 'text', text: '<system-reminder>The boss pressed "Plan First": look around without changing anything, ' +
       'then call the ExitPlanMode tool with your plan. The boss reads it in the office and approves it (or asks for changes) there, so do not ask for approval in chat.</system-reminder>' }] : [];
-    content = [{ type: 'text', text: (text || (files.some(x => x.view) ? '(photo)' : '(file)')) + note }, ...images, ...pdfs, ...undoNote, ...planNote, ...voiceNudgeFor(findWorker(p.workerId))];
+    // hidden: a note from the office, not the boss, so it stays out of the chat (it starts with <system-reminder>).
+    const said = opts.hidden ? `<system-reminder>${text}</system-reminder>` : (text || (files.some(x => x.view) ? '(photo)' : '(file)')) + note;
+    content = [{ type: 'text', text: said }, ...images, ...pdfs, ...undoNote, ...planNote, ...voiceNudgeFor(findWorker(p.workerId))];
   }
   if (p.undoNote) p.undoNote = null;
+  if (p.resumeNote) p.resumeNote = null;
   w.queue.push({ type: 'user', uuid, message: { role: 'user', content }, parent_tool_use_id: null });
-  broadcast({ type: 'chat', id: p.id, items: [{ kind: 'user', uuid, text, images: files.filter(x => x.view).map(x => `data:${x.viewType};base64,${x.view}`), files: files.filter(x => !x.view).map(x => x.name) }] });
+  if (!opts.hidden) broadcast({ type: 'chat', id: p.id, items: [{ kind: 'user', uuid, text, images: files.filter(x => x.view).map(x => `data:${x.viewType};base64,${x.view}`), files: files.filter(x => !x.view).map(x => x.name) }] });
   broadcast({ type: 'busy', id: p.id, busy: true });
   changed(p, { status: 'working', inDesktop: false, desktopDone: false, handoff: null });
 }
@@ -1666,11 +1713,13 @@ const server = http.createServer(async (req, res) => {
         if ('jobs' in clean) { try { clean.jobs = cleanJobs(clean.jobs, p.jobs); } catch (e) { return send(res, 400, { error: e.message }); } }
         if ('permissionMode' in clean && !APPROVALS.includes(clean.permissionMode)) return send(res, 400, { error: 'Unknown approval setting.' });
         const sandboxFlip = 'permissionMode' in clean && (clean.permissionMode === 'free') !== (p.permissionMode === 'free');
-        const restart = ('folder' in clean && clean.folder !== p.folder) || ('useChrome' in clean && clean.useChrome !== p.useChrome);
-        if ('folder' in clean && clean.folder !== p.folder) clean.sessionId = null;
+        const newFolder = 'folder' in clean && clean.folder !== p.folder;  // a new folder means a new chat anyway
+        const chromeFlip = !newFolder && 'useChrome' in clean && !!clean.useChrome !== !!p.useChrome;
+        if (newFolder) clean.sessionId = null;
         changed(p, clean);
         if (!p.deskOf && ('name' in clean || 'plate' in clean)) for (const seat of seatsOf(p)) changed(seat, { name: p.name, plate: p.plate });
-        if (restart) stopWorker(p.id);
+        if (newFolder) stopWorker(p.id);
+        else if (chromeFlip) return send(res, 200, { project: p, ...restartForChrome(p, f.when) });
         else if (sandboxFlip) {
           const w = workers.get(p.id);
           if (w && w.active) w.restartAfterTurn = true; else stopWorker(p.id);
