@@ -1511,6 +1511,12 @@ function renderSettings() {
             </div>
           </li>`; }).join('')}</ul>` : '<p class="muted">No cubicles yet. Hire a critter first.</p>'}
       </section>
+      <section class="panel trusted">
+        <h3>Trusted Websites</h3>
+        <p class="muted">Critters on "Free inside the project folder" can reach these sites without asking you. npm, GitHub, PyPI and Google Fonts are always trusted.</p>
+        <label class="label" for="s-trusted">One site per line, like example.com, or *.example.com for all of its subdomains (up to 50)</label>
+        <textarea class="field" id="s-trusted" rows="5" placeholder="example.com&#10;*.example.com" spellcheck="false" autocomplete="off">${esc((office.settings?.trustedSites || []).join('\n'))}</textarea>
+      </section>
       <section class="panel guardrails">
         <h3>Guardrails</h3>
         <div class="guard-cols">
@@ -2879,6 +2885,14 @@ document.addEventListener('change', e => {
       renderDrawer(true);
       toast('Folder set. The next message starts a fresh chat there.');
     }).catch(() => { el.value = p.folder; });
+  } else if (el.id === 's-trusted') {
+    const was = (office.settings?.trustedSites || []).join('\n');
+    api('PUT', '/api/settings', { trustedSites: el.value }).then(r => {
+      office.settings = r.settings;
+      const now = (r.settings.trustedSites || []).join('\n');
+      el.value = now;
+      if (now !== was) toast(`Saved ${r.settings.trustedSites.length} trusted site${r.settings.trustedSites.length === 1 ? '' : 's'}. Free critters can reach them from their next message.`);
+    }).catch(() => {});  // keep what they typed so they can fix the line the toast names
   } else if (el.dataset.setting) {
     const k = el.dataset.setting, v = el.value.trim(), was = office.settings?.[k] || '';
     if (v === was) return;

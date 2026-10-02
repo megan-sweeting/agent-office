@@ -102,6 +102,21 @@ const loose = p => p?.permissionMode === 'free' || p?.permissionMode === 'auto';
 const inTemp = f => typeof f === 'string' && TEMP_DIRS.some(d => f === d || f.startsWith(d + '/'));
 const FREE_DOMAINS = ['registry.npmjs.org', '*.npmjs.org', 'github.com', '*.github.com', '*.githubusercontent.com',
   'pypi.org', 'files.pythonhosted.org', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+// Trusted Websites (Settings): extra sites critters on "Free in the project folder" may reach without asking.
+const MAX_TRUSTED = 50;
+const freeDomains = () => [...FREE_DOMAINS, ...(office.settings?.trustedSites || [])];
+// One site per line: example.com or *.example.com. A pasted https://…/path is trimmed to its hostname.
+function cleanTrustedSites(list) {
+  const lines = (Array.isArray(list) ? list : String(list || '').split('\n'))
+    .map(s => String(s).trim().toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/[/?#].*$/, '').replace(/\.$/, '')).filter(Boolean);
+  const label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+  const host = new RegExp(`^(\\*\\.)?(${label}\\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$`);
+  const bad = lines.find(s => !host.test(s) || s.length > 253);
+  if (bad) throw new Error(`"${bad}" isn't a website name. Use something like example.com or *.example.com.`);
+  const sites = [...new Set(lines)];
+  if (sites.length > MAX_TRUSTED) throw new Error(`That's ${sites.length} sites. The list holds up to ${MAX_TRUSTED}.`);
+  return sites;
+}
 const EFFORTS = ['', 'low', 'medium', 'high', 'xhigh', 'max'];
 const EDITABLE = ['name', 'plate', 'model', 'effort', 'jobs', 'chromeFree', 'stage', 'status', 'task', 'note', 'folder',
   'permissionMode', 'useChrome', 'todos', 'ideas', 'unread', 'inDesktop'];
@@ -774,7 +789,7 @@ function startWorker(p, { mode } = {}) {
         enabled: true,
         autoAllowBashIfSandboxed: true,
         allowUnsandboxedCommands: true,
-        network: { allowLocalBinding: true, allowedDomains: FREE_DOMAINS },
+        network: { allowLocalBinding: true, allowedDomains: freeDomains() },
         filesystem: { allowWrite: [memoryDir(p)] },
       } : undefined,
       extraArgs: p.useChrome ? { chrome: null } : {},
@@ -1376,6 +1391,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (a === 'settings' && m === 'PUT') {
       const f = await body(req);
+      let trusted;
+      if ('trustedSites' in f) {
+        try { trusted = cleanTrustedSites(f.trustedSites); } catch (e) { return send(res, 400, { error: e.message }); }
+      }
       if ('theme' in f && THEMES.includes(f.theme)) office.settings.theme = f.theme;
       if ('name' in f) office.settings.name = String(f.name || '').trim().slice(0, 40);
       if (f.setupDone === true) office.settings.setupDone = true;
@@ -1390,6 +1409,14 @@ const server = http.createServer(async (req, res) => {
         }
         if (r && !isDir(abs)) return send(res, 400, { error: 'That folder does not exist.' });
         office.settings.projectsRoot = r;
+      }
+      if (trusted && trusted.join('\n') !== (office.settings.trustedSites || []).join('\n')) {
+        office.settings.trustedSites = trusted;
+        // The sandbox's site list is set when a critter starts: restart the free ones (busy ones after this reply).
+        for (const [id, w] of workers) {
+          if (find(id)?.permissionMode !== 'free') continue;
+          if (w.active) w.restartAfterTurn = true; else stopWorker(id);
+        }
       }
       save();
       broadcast({ type: 'settings', settings: office.settings });
