@@ -155,6 +155,10 @@
   @media (prefers-reduced-motion: reduce) { .knock span, .burrow-door svg { animation: none !important; } }
 
   .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .floor-bar { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+  .floor-bar .chips { margin: 0; flex: 1; }
+  .floor-sort { display: flex; align-items: center; gap: 8px; margin-left: auto; font-weight: 700; font-size: 14px; color: var(--muted); }
+  .floor-sort .field { width: auto; padding: 6px 10px; }
   .chip { padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 14px; background: var(--c-bg); color: var(--c); }
 
   /* Cubicles */
@@ -1127,8 +1131,21 @@ function saying(p) {
   return [pickFrom(SAYS[p.status] || SAYS.out, p.id + p.status + p.day), cls];
 }
 
+// How the floor orders cubicles. Remembered in this browser.
+// A cubicle counts its desk mates too, so a message to a desk mate moves the whole cubicle up.
+const latest = (p, k) => Math.max(p[k] || 0, ...seatsOf(p).map(m => m[k] || 0));
+const FLOOR_SORTS = {
+  added: ['Order added', () => 0],
+  active: ['Last active', (a, b) => latest(b, 'updatedAt') - latest(a, 'updatedAt')],
+  messaged: ['Last messaged', (a, b) => latest(b, 'lastMessagedAt') - latest(a, 'lastMessagedAt') || latest(b, 'updatedAt') - latest(a, 'updatedAt')],
+  name: ['Name (A to Z)', (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })],
+};
+let floorSort = 'added';
+try { floorSort = localStorage.getItem('agentOffice.floorSort') || 'added'; } catch (e) {}
+if (!FLOOR_SORTS[floorSort]) floorSort = 'added';
+
 function renderFloor() {
-  const ps = openProjects();
+  const ps = [...openProjects()].sort(FLOOR_SORTS[floorSort][1]);
   const openTodos = ps.reduce((n, p) => n + p.todos.filter(t => !t.done).length, 0);
   const ideas = ps.reduce((n, p) => n + p.ideas.length, 0);
   const counts = Object.fromEntries(Object.keys(STATUSES).map(k => [k, allOpen().filter(p => p.status === k).length]));
@@ -1154,8 +1171,10 @@ function renderFloor() {
         ${usage?.plan?.fiveHour?.pct != null ? `<p class="burrow-usage">Claude ${meterHTML(usage.plan.fiveHour.pct)} <b>${usage.plan.fiveHour.pct}%</b> of your 5-hour limit${usage.plan.fiveHour.resetsAt ? ` · ${resetText(usage.plan.fiveHour.resetsAt)}` : ''}</p>` : ''}</div>
       <span class="knock"><span class="k1">Knock,</span> <span class="k2">knock!</span> <span class="arrow">→</span></span>
     </a>
-    ${ps.length ? `<div class="chips">${Object.entries(STATUSES).filter(([k]) => counts[k]).map(([k, s]) =>
-      `<span class="chip" style="${statusVars(k)}">${counts[k]} ${s.chip}</span>`).join('')}</div>` : ''}
+    ${ps.length ? `<div class="floor-bar"><div class="chips">${Object.entries(STATUSES).filter(([k]) => counts[k]).map(([k, s]) =>
+      `<span class="chip" style="${statusVars(k)}">${counts[k]} ${s.chip}</span>`).join('')}</div>
+      ${ps.length > 1 ? `<label class="floor-sort">Sort by <select class="field" id="floor-sort">${Object.entries(FLOOR_SORTS).map(([k, [label]]) =>
+        `<option value="${k}" ${k === floorSort ? 'selected' : ''}>${label}</option>`).join('')}</select></label>` : ''}</div>` : ''}
     <div class="floor">
       ${ps.map(cubeHTML).join('')}
       <button class="vacant" data-action="hire">
@@ -2943,6 +2962,11 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   const p = drawer.id && find(drawer.id);
+  if (el.id === 'floor-sort') {
+    floorSort = el.value;
+    try { localStorage.setItem('agentOffice.floorSort', floorSort); } catch (err) {}
+    return render();
+  }
   if (el.id === 'f-folder' && p) {
     const folder = el.value.trim();
     if (folder === p.folder) return;

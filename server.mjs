@@ -1617,6 +1617,7 @@ const server = http.createServer(async (req, res) => {
         if (!text?.trim() && !list.length) return send(res, 400, { error: 'Empty message.' });
         let saved;
         try { saved = await saveAttachments(p, list); } catch (e) { return send(res, 400, { error: e.message }); }
+        changed(p, { lastMessagedAt: Date.now() });  // for sorting the floor by "Last messaged"
         sendMessage(p, (text || '').trim(), saved, { plan: !!plan });
         practiceTick(p, 'sent');
         return send(res, 200, { ok: true });
