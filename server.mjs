@@ -1018,7 +1018,7 @@ setInterval(() => {
 }, 20000);
 
 /* ---------------- Office version and updates (git) ---------------- */
-// The office updates itself when it's a git download with a remote: fetch, fast-forward, npm install if needed, restart.
+// The office updates itself when it's a git download with a remote: fetch, fast-forward, npm ci if needed, restart.
 const SEP = '\x1f';
 async function officeVersion() {
   const top = await git(DIR, ['rev-parse', '--show-toplevel']);
@@ -1034,7 +1034,8 @@ async function newCommits() {
   const count = +(await git(DIR, ['rev-list', '--count', 'HEAD..@{u}'])).out || 0;
   return { count, commits: list.out.split('\n').filter(Boolean).map(l => { const [id, message] = l.split(SEP); return { id, message }; }) };
 }
-const npmInstall = () => new Promise(resolve => execFile('npm', ['install', '--no-audit', '--no-fund'], { cwd: DIR, timeout: 300000, maxBuffer: 8 << 20 },
+// npm ci installs exactly what package-lock.json lists and never rewrites it, so updating leaves no local changes behind.
+const npmCi = () => new Promise(resolve => execFile('npm', ['ci', '--no-audit', '--no-fund'], { cwd: DIR, timeout: 300000, maxBuffer: 8 << 20 },
   (err, out, errOut) => resolve({ ok: !err, err: String(errOut || err?.message || '').trim() })));
 
 let restartPending = false;
@@ -1426,8 +1427,8 @@ const server = http.createServer(async (req, res) => {
       const files = (await git(DIR, ['diff', '--name-only', before, 'HEAD'])).out.split('\n').filter(Boolean);
       const npm = files.some(f => f === 'package.json' || f === 'package-lock.json');
       if (npm) {
-        const r = await npmInstall();
-        if (!r.ok) return send(res, 500, { error: `The office updated, but installing its packages failed: ${firstLine(r.err)}. In Terminal, run npm install in the office folder, then start the office again.` });
+        const r = await npmCi();
+        if (!r.ok) return send(res, 500, { error: `The office updated, but installing its packages failed: ${firstLine(r.err)}. In Terminal, run npm ci in the office folder, then start the office again.` });
       }
       restartPending = true;
       setTimeout(restartWhenIdle, 200);
