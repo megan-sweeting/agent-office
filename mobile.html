@@ -81,6 +81,12 @@
   .md { white-space: pre-wrap; }
   .md code { background: var(--code); padding: 1px 5px; border-radius: 5px; font-size: 14px; }
   .row.me .md code { background: rgba(255,255,255,.2); }
+  .md-table { overflow-x: auto; margin: 6px 0; white-space: normal; }
+  .md table { border-collapse: collapse; font-size: 14px; line-height: 1.4; }
+  .md th, .md td { border: 1px solid var(--line); padding: 5px 10px; text-align: left; vertical-align: top; }
+  .md th { background: var(--code); font-weight: 800; }
+  .row.me .md th, .row.me .md td { border-color: rgba(255,255,255,.35); }
+  .row.me .md th { background: rgba(255,255,255,.15); }
   .code-box { position: relative; }
   /* The button keeps one width for "Copy" and "Copied!", and the code keeps clear of it. */
   .code-box pre.code { padding-right: 96px; }
@@ -196,8 +202,28 @@ function md(s) {
     if (i % 2) { const nl = part.indexOf('\n'); return `<div class="code-box"><pre class="code">${esc((nl >= 0 && /^[\w+#.-]*$/.test(part.slice(0, nl).trim()) ? part.slice(nl + 1) : part).replace(/\n$/, ''))}</pre><button type="button" class="copy-code" data-action="copy-code" aria-label="Copy code">Copy</button></div>`; }
     const h = esc(part.replace(/^\n+|\n+$/g, '')).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>').replace(/^#{1,6} (.+)$/gm, '<b>$1</b>');
-    return h ? `<div class="md">${h}</div>` : '';
+    return h ? `<div class="md">${mdTables(h)}</div>` : '';
   }).join('');
+}
+// Markdown tables (a header row, a |---| row, then body rows) become real tables.
+function mdTables(h) {
+  const lines = h.split('\n'), out = [];
+  const cells = l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+  const isSep = l => l.includes('|') && /^\s*\|?(\s*:?-+:?\s*\|)*\s*:?-+:?\s*\|?\s*$/.test(l);
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].includes('|') || !isSep(lines[i + 1] || '')) { out.push({ t: lines[i] }); continue; }
+    const head = cells(lines[i]);
+    const align = cells(lines[i + 1]).map(c => c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : '');
+    const rows = [];
+    let j = i + 2;
+    while (j < lines.length && lines[j].includes('|') && lines[j].trim()) rows.push(cells(lines[j++]));
+    const cell = (tag, c, k) => `<${tag}${align[k] ? ` style="text-align:${align[k]}"` : ''}>${c}</${tag}>`;
+    out.push({ table: true, t: `<div class="md-table"><table><thead><tr>${head.map((c, k) => cell('th', c, k)).join('')}</tr></thead><tbody>${
+      rows.map(r => `<tr>${head.map((_, k) => cell('td', r[k] ?? '', k)).join('')}</tr>`).join('')}</tbody></table></div>` });
+    i = j - 1;
+  }
+  const kept = out.filter((x, k) => !(k && out[k - 1].table && !x.table && !x.t.trim()));
+  return kept.map((x, k) => (k && !x.table && !kept[k - 1].table ? '\n' : '') + x.t).join('');
 }
 
 /* ---------- Chat list ---------- */
