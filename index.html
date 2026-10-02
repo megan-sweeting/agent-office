@@ -1437,7 +1437,7 @@ function renderSignIn() {
 // The words and buttons for where the sign-in is up to (shared by the chat banner and Settings).
 function signInFlowHTML(name) {
   const s = signIn.state;
-  const restart = inApp() ? '<button class="btn small accent" data-action="signin-restart">Restart the Office</button>'
+  const restart = inApp() && !signIn.manualRestart ? '<button class="btn small accent" data-action="signin-restart">Restart the Office</button>'
     : '<span>Quit Agent Office and open it again. If you started it from Terminal, press Control-C there and start it again.</span>';
   if (s === 'needs') return `<p>Claude isn't signed in${name ? `, so ${esc(name)} can't work yet` : ''}.</p><button class="btn small accent" data-action="signin">Sign In to Claude</button>`;
   if (s === 'opening') return `<p>Opening Terminal…</p>`;
@@ -1501,6 +1501,12 @@ function restartOffice() {
   signIn.state = 'restarting';
   renderSignIn();
   window.webkit.messageHandlers.office.postMessage({ kind: 'restart-office' });
+  // An app built before Restart the Office ignores the request: say how to do it by hand.
+  setTimeout(() => {
+    if (signIn.state !== 'restarting') return;
+    try { localStorage.removeItem(RECHECK_KEY); } catch (e) {}
+    signIn.manualRestart = true; signIn.state = 'stale'; renderSignIn();
+  }, 20000);
 }
 // After a restart (or a reconnect while stuck): check the sign-in again by itself.
 function recheckAfterRestart() {
