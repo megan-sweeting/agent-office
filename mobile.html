@@ -81,6 +81,9 @@
   .md { white-space: pre-wrap; }
   .md code { background: var(--code); padding: 1px 5px; border-radius: 5px; font-size: 14px; }
   .row.me .md code { background: rgba(255,255,255,.2); }
+  .code-box { position: relative; }
+  .code-box pre.code { padding-right: 64px; }
+  .copy-code { position: absolute; top: 6px; right: 6px; font: inherit; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 8px; border: 2px solid var(--line-soft); background: var(--paper); color: var(--ink); }
   pre.code { background: var(--card); border-radius: 10px; padding: 8px 10px; overflow-x: auto; margin: 6px 0; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
   .who-sub { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 10px; }
   .sys { align-self: center; font-size: 13px; color: var(--muted); text-align: center; }
@@ -176,9 +179,20 @@ async function api(method, url, body) {
   if (!r.ok) { toast(d.error || 'Something went wrong.'); throw new Error(d.error); }
   return d;
 }
+// Copy a chat code box. navigator.clipboard needs https or localhost, so the phone (over Tailscale) uses the old way.
+async function copyCode(btn) {
+  const text = btn.parentElement.querySelector('pre').textContent;
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = Object.assign(document.createElement('textarea'), { value: text });
+    ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  btn.textContent = 'Copied!'; clearTimeout(btn.t); btn.t = setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+}
 function md(s) {
   return String(s).split('```').map((part, i) => {
-    if (i % 2) { const nl = part.indexOf('\n'); return `<pre class="code">${esc((nl >= 0 && /^[\w+#.-]*$/.test(part.slice(0, nl).trim()) ? part.slice(nl + 1) : part).replace(/\n$/, ''))}</pre>`; }
+    if (i % 2) { const nl = part.indexOf('\n'); return `<div class="code-box"><pre class="code">${esc((nl >= 0 && /^[\w+#.-]*$/.test(part.slice(0, nl).trim()) ? part.slice(nl + 1) : part).replace(/\n$/, ''))}</pre><button type="button" class="copy-code" data-action="copy-code" aria-label="Copy code">Copy</button></div>`; }
     const h = esc(part.replace(/^\n+|\n+$/g, '')).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>').replace(/^#{1,6} (.+)$/gm, '<b>$1</b>');
     return h ? `<div class="md">${h}</div>` : '';
@@ -323,6 +337,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && (!
 document.addEventListener('click', async e => {
   const t = e.target.closest('button');
   if (!t) return;
+  if (t.dataset.action === 'copy-code') return copyCode(t);
   if (t.dataset.open) return openChat(t.dataset.open);
   if (t.hasAttribute('data-back')) { history.back(); return closeChat(); }
   if (t.dataset.perm) {

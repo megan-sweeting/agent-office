@@ -167,6 +167,8 @@ const find = id => office.projects.find(p => p.id === id);
 const findWorker = id => office.workers.find(w => w.id === id);
 const isHired = workerId => office.projects.some(p => !p.closed && p.workerId === workerId);
 const workerName = p => findWorker(p.workerId)?.name || 'Worker';
+// Mood pictures, e.g. "forest-fox-needs", from assets/critters/moods (made with app/mood.py).
+const moodPics = () => { try { return fs.readdirSync(path.join(ASSETS, 'critters', 'moods')).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)); } catch { return []; } };
 const uid = () => crypto.randomBytes(5).toString('hex');
 migrate();
 
@@ -1339,7 +1341,7 @@ const server = http.createServer(async (req, res) => {
       res.write(`data: ${JSON.stringify({
         type: 'hello', office, busy: [...workers.entries()].filter(([, w]) => w.active).map(([k]) => k),
         build: String(fs.statSync(path.join(DIR, 'index.html')).mtimeMs),
-        permissions: [...pending.values()].map(x => x.req), guardLog: guardLog.slice(0, 30),
+        permissions: [...pending.values()].map(x => x.req), guardLog: guardLog.slice(0, 30), moods: moodPics(),
       })}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));

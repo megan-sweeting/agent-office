@@ -547,6 +547,10 @@
   .row.me .bubble a { color: inherit; }
   .row.me .bubble .md code { background: rgba(255,255,255,.2); }
   .bubble pre.code { white-space: pre-wrap; background: var(--card); }
+  .code-box { position: relative; }
+  .code-box pre.code { padding-right: 64px; }
+  .copy-code { position: absolute; top: 6px; right: 6px; font: inherit; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 8px; border: 2px solid var(--line-soft); background: var(--card); color: var(--ink); cursor: pointer; }
+  .copy-code:hover, .copy-code:focus-visible { border-color: var(--line); }
   .typing-bubble { display: inline-flex; padding: 14px 16px; }
   .typing-bubble .dots i { background: var(--moss); }
   .who-sub { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 12px; }
@@ -806,6 +810,7 @@ darkMedia.addEventListener('change', applyTheme);
 const modelName = id => (MODELS.find(m => m[0] === (id || '')) || MODELS[0])[1];
 let busy = new Set();
 let perms = new Map();
+let moods = new Set(); // mood pictures that exist, e.g. "forest-fox-needs"
 let view = 'floor';
 try { view = localStorage.getItem('agentOffice.view') || 'floor'; } catch (e) {}
 let drawer = { id: null, tab: 'chat' };
@@ -867,8 +872,16 @@ function quietHTML() {
         <button class="btn small" data-action="close-project" data-id="${p.id}">Close Project</button></li>`; }).join('')}</ul>`
       : '<p class="muted">Every cubicle is busy right now. Check back when someone finishes.</p>'}</div>`;
 }
-const critterImg = (w, cls = 'critter', alt = true) => w?.critter
-  ? `<img class="${cls}" src="/assets/critters/${esc(w.critter)}.png" alt="${alt ? `${esc(w.name)} the ${esc(animalOf(w))}` : ''}">` : '';
+const critterImg = (w, cls = 'critter', alt = true, mood = '') => w?.critter
+  ? `<img class="${cls}" src="${critterSrc(w, mood)}" alt="${alt ? `${esc(w.name)} the ${esc(animalOf(w))}` : ''}">` : '';
+// The mood picture when one exists in assets/critters/moods, else the normal one.
+const critterSrc = (w, mood) => moods.has(`${w.critter}-${mood}`)
+  ? `/assets/critters/moods/${esc(w.critter)}-${mood}.png` : `/assets/critters/${esc(w.critter)}.png`;
+// How a critter at its desk looks: asking for you, or napping. A May I? wins (the critter is still mid-turn
+// while it waits); otherwise busy always looks normal.
+const moodOf = (p, asking) => asking ? 'needs' : busy.has(p.id) ? ''
+  : ['needs', 'blocked'].includes(p.status) ? 'needs'
+  : ['out', 'home'].includes(p.status) ? 'sleepy' : '';
 const titleCase = t => String(t || '').replace(/\b\w/g, c => c.toUpperCase());
 const animalOf = w => titleCase(w.animal);
 // Hide file-section references like "(§13)" on screen; the text itself keeps them.
@@ -924,12 +937,23 @@ function renameWorker(w, name, wait = 500) {
 }
 
 /* ---------- Markdown + diffs ---------- */
+// Copy a chat code box. navigator.clipboard needs https or localhost, so the phone (over Tailscale) uses the old way.
+async function copyCode(btn) {
+  const text = btn.parentElement.querySelector('pre').textContent;
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = Object.assign(document.createElement('textarea'), { value: text });
+    ta.style.cssText = 'position:fixed;opacity:0'; document.body.append(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  btn.textContent = 'Copied!'; clearTimeout(btn.t); btn.t = setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+}
 function md(s) {
   return String(s).split('```').map((part, i) => {
     if (i % 2) {
       const nl = part.indexOf('\n');
       const code = nl >= 0 && /^[\w+#.-]*$/.test(part.slice(0, nl).trim()) ? part.slice(nl + 1) : part;
-      return `<pre class="code">${esc(code.replace(/\n$/, ''))}</pre>`;
+      return `<div class="code-box"><pre class="code">${esc(code.replace(/\n$/, ''))}</pre><button type="button" class="copy-code" data-action="copy-code" aria-label="Copy code">Copy</button></div>`;
     }
     const h = esc(part.replace(/^\n+|\n+$/g, ''))
       .replace(/`([^`\n]+)`/g, '<code>$1</code>')
@@ -1151,8 +1175,8 @@ function cubeHTML(p) {
   <article class="cube s-${p.status} ${busy.has(p.id) ? 'busy' : ''} ${asking ? 'asking' : ''}" data-action="open" data-id="${p.id}" style="${plateVars(p)}">
     <div class="wall"><span class="plate">${esc(p.name)}</span></div>
     ${p.unread ? '<span class="unread-dot" title="New reply"></span>' : ''}
-    <div class="scene">${critterImg(w)}${seatsOf(p).slice(0, 2).map((m, i) =>
-      `<img class="mate-pic ${i ? 'right' : 'left'} ${busy.has(m.id) ? 'busy' : ''}" src="/assets/critters/${esc(workerOf(m).critter)}.png" alt="">`).join('')}<span class="say ${sayCls} ${['break', 'out', 'home'].includes(p.status) && !busy.has(p.id) && !asking ? 'thought' : ''}">${esc(say)}</span></div>
+    <div class="scene">${critterImg(w, 'critter', true, moodOf(p, asking))}${seatsOf(p).slice(0, 2).map((m, i) =>
+      `<img class="mate-pic ${i ? 'right' : 'left'} ${busy.has(m.id) ? 'busy' : ''}" src="${critterSrc(workerOf(m), moodOf(m, askingCount(m.id)))}" alt="">`).join('')}<span class="say ${sayCls} ${['break', 'out', 'home'].includes(p.status) && !busy.has(p.id) && !asking ? 'thought' : ''}">${esc(say)}</span></div>
     <div class="desk"><span class="desk-name">${esc(w.name)}</span></div>
     <div class="info">
       <div class="pills"><span class="pill" style="${statusVars(p.status)}">${s.label}</span>${longShift(p)}</div>
@@ -2359,6 +2383,7 @@ function connect() {
       pageBuild ||= ev.build;
       office = ev.office;
       guardLog = ev.guardLog || [];
+      if (ev.moods) moods = new Set(ev.moods);
       applyTheme();
       fetchUsage();
       busy = new Set(ev.busy);
@@ -2485,6 +2510,7 @@ document.addEventListener('click', async e => {
     case 'go': return go(el.dataset.v);
     case 'open': return openDrawer(id, t);
     case 'close-drawer': return closeDrawer();
+    case 'copy-code': return copyCode(el);
     case 'tab': {
       drawer.tab = t;
       pastChat = null;
