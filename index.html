@@ -2168,7 +2168,8 @@ function detailsHTML(p) {
       ${p.closed ? `<button class="btn primary" data-action="reopen" data-id="${p.id}">Reopen Project</button>
         <button class="btn warn" data-action="delete" data-id="${p.id}">Delete for Good</button>`
         : `<button class="btn warn" data-action="close-project" data-id="${p.id}">Close Project</button>
-        <span class="muted">${esc(w.name)} goes back to the meadow. You can reopen it later.</span>`}
+        <span class="muted">${esc(w.name)} goes back to the meadow. You can reopen it later.</span>
+        <button class="btn warn" data-action="delete" data-id="${p.id}">Delete for Good</button>`}
     </div>`;
 }
 
@@ -2888,10 +2889,17 @@ document.addEventListener('click', async e => {
       patch(p, { todos: [...p.todos, { id: rid(), text: idea.text, done: false }], ideas: p.ideas.filter(x => x.id !== t) });
       break;
     }
-    case 'delete':
-      if (!confirm(`Delete ${p.name} for good? Its to-dos, ideas and day history go too. The chats themselves stay in Claude Code.`)) return;
-      await api('DELETE', `/api/projects/${p.id}`);
+    case 'delete': {
+      // Three checks: two confirms, then typing DELETE. The server checks the word too.
+      if (!confirm(`Delete ${p.name} for good?\n\nThe cubicle, its to-dos, ideas and day history are removed from the office. This can't be undone.\n\nThe project's folder and files stay on your Mac, and the chats stay in Claude Code.`)) return;
+      if (!confirm(`Are you sure? ${p.name} can't be brought back after this.\n\nTip: Close Project keeps everything and lets you reopen it later.`)) return;
+      const typed = prompt(`Last check: type DELETE in capitals to delete ${p.name} for good.`);
+      if (typed === null) return;
+      if (typed.trim() !== 'DELETE') return toast(`Not deleted: you typed "${typed.trim()}", not DELETE.`);
+      try { await api('DELETE', `/api/projects/${p.id}`, { confirm: 'DELETE' }); } catch (e) { return; }
+      toast(`${p.name} was deleted. Its folder is still on your Mac.`);
       return closeDrawer();
+    }
     case 'export': return exportData();
     case 'import-local': {
       const data = JSON.parse(localStorage.getItem('agentOffice.v1'));

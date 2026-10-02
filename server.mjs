@@ -1600,6 +1600,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { project: p });
       }
       if (!b && m === 'DELETE') {
+        if ((await body(req)).confirm !== 'DELETE') return send(res, 400, { error: 'Type DELETE to confirm deleting a project.' });
         for (const seat of seatsOf(p)) await sendHome(seat, true).catch(e => console.error(e));
         stopWorker(p.id);
         office.projects = office.projects.filter(x => x.id !== p.id);
