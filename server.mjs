@@ -1017,6 +1017,26 @@ setInterval(() => {
   }
 }, 20000);
 
+/* ---------------- Office version and updates (git) ---------------- */
+// The office updates itself when it's a git download with a remote: fetch, fast-forward, npm install if needed, restart.
+const SEP = '\x1f';
+async function officeVersion() {
+  const top = await git(DIR, ['rev-parse', '--show-toplevel']);
+  if (!top.ok || fs.realpathSync(top.out) !== fs.realpathSync(DIR)) return { git: false, reason: 'not-git' };
+  const head = (await git(DIR, ['log', '-1', `--format=%h${SEP}%cI${SEP}%s`])).out.split(SEP);
+  const commit = head[0] ? { id: head[0], date: head[1], message: head[2] } : null;
+  const upstream = await git(DIR, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  if (!upstream.ok) return { git: true, commit, reason: 'no-remote' };
+  return { git: true, commit, upstream: upstream.out };
+}
+async function newCommits() {
+  const list = await git(DIR, ['log', '--max-count=10', `--format=%h${SEP}%s`, 'HEAD..@{u}']);
+  const count = +(await git(DIR, ['rev-list', '--count', 'HEAD..@{u}'])).out || 0;
+  return { count, commits: list.out.split('\n').filter(Boolean).map(l => { const [id, message] = l.split(SEP); return { id, message }; }) };
+}
+const npmInstall = () => new Promise(resolve => execFile('npm', ['install', '--no-audit', '--no-fund'], { cwd: DIR, timeout: 300000, maxBuffer: 8 << 20 },
+  (err, out, errOut) => resolve({ ok: !err, err: String(errOut || err?.message || '').trim() })));
+
 let restartPending = false;
 function restartWhenIdle() {
   if (!restartPending) return;
@@ -1383,6 +1403,36 @@ const server = http.createServer(async (req, res) => {
     if (a === 'search' && m === 'GET') {
       const q = String(url.searchParams.get('q') || '').trim();
       return send(res, 200, { results: q.length < 2 ? [] : searchChats(q.slice(0, 100)) });
+    }
+    if (a === 'version' && !id && m === 'GET') return send(res, 200, await officeVersion());
+    if (a === 'version' && (id === 'check' || id === 'update') && m === 'POST') {
+      const v = await officeVersion();
+      if (!v.git || v.reason) return send(res, 400, { error: v.git ? "This copy isn't connected to GitHub, so there's nowhere to get updates from." : "This copy of the office wasn't downloaded with git, so it can't update itself." });
+      const remote = v.upstream.split('/')[0];
+      const fetched = await gitNet(DIR, ['fetch', '--quiet', remote]);
+      if (!fetched.ok) return send(res, 400, { error: `Couldn't reach GitHub to check for updates: ${firstLine(fetched.err)}` });
+      if (id === 'check') return send(res, 200, await newCommits());
+      // Update: only when the office's own files are untouched, and only a straight fast-forward.
+      // Each line is a status code then the path (the helper trims the first line's leading space, so don't count columns).
+      const dirty = (await git(DIR, ['status', '--porcelain', '--untracked-files=no'])).out.split('\n').filter(Boolean).map(l => l.trim().replace(/^\S+\s+/, ''));
+      if (dirty.length) return send(res, 400, { error: `The office's own files have changes here (${dirty.slice(0, 5).join(', ')}${dirty.length > 5 ? '…' : ''}), so updating could overwrite them. Undo or save those changes first.` });
+      const { count } = await newCommits();
+      if (!count) return send(res, 200, { updated: 0 });
+      const before = (await git(DIR, ['rev-parse', 'HEAD'])).out;
+      const pulled = await gitNet(DIR, ['pull', '--ff-only', '--quiet']);
+      if (!pulled.ok) return send(res, 400, { error: /fast-forward|diverg/i.test(pulled.err)
+        ? 'This copy has its own saved versions that GitHub doesn\'t have, so it can\'t update automatically.'
+        : `The update didn't go through: ${firstLine(pulled.err)}` });
+      const files = (await git(DIR, ['diff', '--name-only', before, 'HEAD'])).out.split('\n').filter(Boolean);
+      const npm = files.some(f => f === 'package.json' || f === 'package-lock.json');
+      if (npm) {
+        const r = await npmInstall();
+        if (!r.ok) return send(res, 500, { error: `The office updated, but installing its packages failed: ${firstLine(r.err)}. In Terminal, run npm install in the office folder, then start the office again.` });
+      }
+      restartPending = true;
+      setTimeout(restartWhenIdle, 200);
+      return send(res, 200, { updated: count, npm, appChanged: files.some(f => f.startsWith('app/')),
+        waiting: [...workers.values()].filter(w => w.active).length });
     }
     if (a === 'restart' && m === 'POST') {
       restartPending = true;

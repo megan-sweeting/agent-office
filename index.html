@@ -324,6 +324,10 @@
   .settings .critters-panel { grid-column: 2; grid-row: 1 / span 4; }
   @media (max-width: 900px) { .settings { grid-template-columns: 1fr; } .settings .alerts, .settings .you, .settings .critters-panel { grid-column: auto; grid-row: auto; } .settings { grid-template-rows: none; } }
   .panel { background: var(--card); border: 3px solid var(--wall); border-radius: 22px; padding: 18px 22px; }
+  .version p { margin: 6px 0 0; font-size: 14px; line-height: 1.45; }
+  .version .ver-now code { font-weight: 700; }
+  .version ul { margin: 6px 0 0; padding-left: 20px; font-size: 14px; }
+  .version .ver-done { color: var(--ok); font-weight: 700; }
   .panel h3 { margin: 0 0 4px; font-size: 19px; }
   .panel > p { margin: 0 0 14px; color: var(--muted); }
   .themes { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -1308,6 +1312,50 @@ async function finishSetup() {
   } catch { if (btn) btn.disabled = false; }
 }
 
+/* ---------- Office version and updates ---------- */
+let ver = null;            // what /api/version said, or { loading: true }
+let verState = null;       // { busy } while checking or updating, then the result
+let awaitingUpdate = false; // after an update: reload once the restarted office reconnects
+function loadVersion() {
+  if (ver && !ver.loading) return;
+  ver = { loading: true };
+  api('GET', '/api/version').then(r => { ver = r; }).catch(() => { ver = { failed: true }; }).finally(renderVersion);
+}
+function renderVersion() { const el = $('#verPanel'); if (el) el.innerHTML = versionHTML(); }
+function versionHTML() {
+  if (!ver) setTimeout(loadVersion, 0);  // the page opened straight onto Settings
+  if (!ver || ver.loading) return '<p class="muted">Looking up this version…</p>';
+  if (ver.failed) return "<p class=\"muted\">Couldn't look up the version right now.</p>";
+  if (!ver.git) return `<p>This copy of the office wasn't downloaded with git, so it can't update itself.</p>
+    <p class="muted">To get the latest version, download it again from <a href="https://github.com/megan-sweeting/agent-office" target="_blank" rel="noopener">GitHub</a>.</p>`;
+  const c = ver.commit, now = c ? `<p class="ver-now"><code>${esc(c.id)}</code> · ${new Date(c.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} · ${esc(c.message)}</p>` : '';
+  if (ver.reason === 'no-remote') return `${now}<p class="muted">This copy isn't connected to GitHub, so there's nowhere to get updates from.</p>`;
+  const s = verState || {};
+  let result = '';
+  if (s.busy) result = `<p class="muted">${s.busy === 'check' ? 'Checking GitHub…' : 'Updating…'}</p>`;
+  else if (s.error) result = `<p class="muted">${esc(s.error)}</p>`;
+  else if ('updated' in s) result = s.updated ? `<p class="ver-done">Updated with ${s.updated} new version${s.updated === 1 ? '' : 's'}${s.npm ? ' and their packages' : ''}.</p>
+      <p>The office restarts as soon as no critter is working${s.waiting ? ` (${s.waiting} still working)` : ''}, then this page reloads by itself.</p>
+      ${s.appChanged ? '<p><b>The Mac app changed too.</b> To rebuild it, open Terminal in the office\'s app folder and run <code>./build.sh</code>.</p>' : ''}`
+    : '<p class="ver-done">You\'re up to date.</p>';
+  else if ('count' in s) result = s.count ? `<p><b>${s.count} new version${s.count === 1 ? '' : 's'} on GitHub:</b></p>
+      <ul>${s.commits.map(x => `<li>${esc(x.message)}</li>`).join('')}</ul>${s.count > s.commits.length ? `<p class="muted">…and ${s.count - s.commits.length} more.</p>` : ''}`
+    : '<p class="ver-done">You\'re up to date.</p>';
+  const off = s.busy || ('updated' in s && s.updated) ? 'disabled' : '';
+  return `${now}<div class="row-btns" style="margin-top:10px">
+      <button class="btn small" data-action="ver-check" ${off}>Check for Updates</button>
+      <button class="btn small ${s.count ? 'accent' : ''}" data-action="ver-update" ${off}>Update Office</button></div>${result}`;
+}
+async function versionAction(kind) {
+  verState = { busy: kind };
+  renderVersion();
+  try {
+    verState = await api('POST', `/api/version/${kind}`);
+    if (kind === 'update' && verState.updated) awaitingUpdate = true;
+  } catch (e) { verState = { error: e.message || 'Something went wrong.' }; }
+  renderVersion();
+}
+
 /* ---------- First-time tours ---------- */
 // Two short tours: the office (after the welcome screen) and the inside of a cubicle (the first time one opens).
 // "tray" is where approval cards appear (empty on day one, so no element to point at).
@@ -1510,6 +1558,10 @@ function renderSettings() {
                 `<option value="${k}" ${(p.permissionMode || 'default') === k ? 'selected' : ''}>${approvalName(k)}</option>`).join('')}</select>
             </div>
           </li>`; }).join('')}</ul>` : '<p class="muted">No cubicles yet. Hire a critter first.</p>'}
+      </section>
+      <section class="panel version">
+        <h3>Office Version</h3>
+        <div id="verPanel">${versionHTML()}</div>
       </section>
       <section class="panel trusted">
         <h3>Trusted Websites</h3>
@@ -2355,6 +2407,7 @@ function renderOffline() {
 function go(v) {
   view = v;
   if (v === 'boss' || v === 'floor') fetchUsage();
+  if (v === 'settings') loadVersion();
   if (!SHOTTING) try { localStorage.setItem('agentOffice.view', v); } catch (e) {}
   window.scrollTo(0, 0);
   main_rerender();
@@ -2385,6 +2438,7 @@ function connect() {
     const ev = JSON.parse(e.data);
     if (ev.type === 'ping') { sawPing = true; return; }
     if (ev.type === 'hello') {
+      if (awaitingUpdate) return location.reload();
       // The office was updated: load the new page once nothing is being typed.
       if (pageBuild && ev.build && ev.build !== pageBuild) reloadWhenSafe();
       pageBuild ||= ev.build;
@@ -2545,6 +2599,10 @@ document.addEventListener('click', async e => {
     case 'tour-next': return tourStep(1);
     case 'tour-back': return tourStep(-1);
     case 'tour-skip': return endTour(false);
+    case 'ver-check': return versionAction('check');
+    case 'ver-update':
+      if (!confirm('Update the office now?\n\nIt restarts as soon as no critter is working, then this page reloads by itself.')) return;
+      return versionAction('update');
     case 'tour-practice': endTour(false); return startPractice();
     case 'practice-start': return startPractice();
     case 'practice-open': return api('POST', `/api/projects/${p.id}/practice-open`).catch(() => {});
