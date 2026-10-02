@@ -1175,7 +1175,7 @@ function renderFloor() {
       </span>
       <div class="burrow-text"><h2>The Boss's Burrow</h2>
         ${usage?.plan?.fiveHour?.pct != null ? `<p class="burrow-usage">Claude ${meterHTML(usage.plan.fiveHour.pct)} <b>${usage.plan.fiveHour.pct}%</b> of your 5-hour limit${usage.plan.fiveHour.resetsAt ? ` · ${resetText(usage.plan.fiveHour.resetsAt)}` : ''}</p>` : ''}</div>
-      <span class="knock"><span class="k1">Knock,</span> <span class="k2">knock!</span> <span class="arrow">→</span></span>
+      <span class="knock"><span class="k1">Knock,</span> <span class="k2">Knock!</span> <span class="arrow">→</span></span>
     </a>
     ${ps.length ? `<div class="floor-bar"><div class="chips">${Object.entries(STATUSES).filter(([k]) => counts[k]).map(([k, s]) =>
       `<span class="chip" style="${statusVars(k)}">${counts[k]} ${s.chip}</span>`).join('')}</div>
