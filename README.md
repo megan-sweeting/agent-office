@@ -75,6 +75,7 @@ Everything the office knows is saved in `office.json` next to this file. It hold
 - **Your usage.** Each critter is a real Claude Code session on your plan. Several busy critters use your plan's limits faster. Settings → Critters lets you pick the model and effort level.
 - **It only listens on your Mac.** The office answers on `127.0.0.1` only. The phone chat page works through `tailscale serve`, and only for your own Tailscale login.
 - **Approvals matter.** Critters can edit files and run commands in their project folders. Read the approval pop-ups before you click Allow.
+- **When Claude's login runs out**, critters say "Not logged in". A banner in their chat has a **Sign In to Claude** button: it opens Terminal running `claude /login` (the first time, macOS asks whether the office may control Terminal). Finish there, press **I'm Signed In**, then **Try Again**. If the office still can't see the sign-in, **Restart the Office** in the Mac app usually fixes it. Typing `/login` in a chat starts the same steps.
 
 ## Support Agent Office
 

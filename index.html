@@ -438,6 +438,12 @@
   .practice li.now { color: var(--ink); border-color: var(--accent); }
   .practice li.now i { background: var(--accent); color: var(--accent-on); }
   .practice-hint { margin: 8px 0 0; font-size: 14px; font-weight: 700; color: var(--mustard-ink); }
+  .signin-bar { margin-top: 10px; padding: 10px 14px; border: 2px solid var(--warn-line); border-radius: 14px; background: var(--warn-bg); color: var(--warn);
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: 14px; font-weight: 700; }
+  .signin-bar p { margin: 0; flex: 1 1 240px; }
+  .signin-bar p small { display: block; margin-top: 3px; font-weight: 600; }
+  .signin-bar > span { flex: 1 1 100%; font-weight: 600; }
+  .signin-bar.ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
   .note-bar { margin-top: 10px; padding: 9px 14px; border-radius: 14px; font-size: 14px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
   .tabs { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 2px dashed var(--line); overflow-x: auto; }
   .tab { border: 0; background: transparent; padding: 8px 14px; border-radius: 12px 12px 0 0; color: var(--muted); font-weight: 800; white-space: nowrap; }
@@ -1408,6 +1414,121 @@ async function versionAction(kind) {
   renderVersion();
 }
 
+/* ---------- Claude sign-in ---------- */
+// When Claude's login runs out, the critters that failed get a banner: Sign In to Claude opens Terminal
+// on this Mac, I'm Signed In checks from inside the office, and Try Again resends the last message.
+// If the office still can't see the sign-in, restarting it (from the Mac app) usually fixes that.
+const signIn = { state: null, ids: new Set(), retried: {} };
+let signInStatus = null;   // Settings: what the last check said, or { loading: true }
+const inApp = () => !!window.webkit?.messageHandlers?.office;
+const RECHECK_KEY = 'agentOffice.signInRecheck';
+function signInNeeded(id) {
+  signIn.ids.add(id);
+  // Failing again right after a sign-in means the office itself can't see the new login.
+  if (signIn.state === 'ok' || Date.now() - (signIn.retried[id] || 0) < 5 * 60e3) signIn.state = 'stale';
+  else if (!signIn.state) { signIn.state = 'needs'; if (drawer.id !== id) toast(`Claude isn't signed in, so ${workerOf(find(id)).name} can't work yet. Open their chat to sign in.`); }
+  renderSignIn();
+}
+function renderSignIn() {
+  if (drawer.id) renderDrawer(false);
+  const el = $('#signInPanel');
+  if (el) el.innerHTML = signInPanelHTML();
+}
+// The words and buttons for where the sign-in is up to (shared by the chat banner and Settings).
+function signInFlowHTML(name) {
+  const s = signIn.state;
+  const restart = inApp() ? '<button class="btn small accent" data-action="signin-restart">Restart the Office</button>'
+    : '<span>Quit Agent Office and open it again. If you started it from Terminal, press Control-C there and start it again.</span>';
+  if (s === 'needs') return `<p>Claude isn't signed in${name ? `, so ${esc(name)} can't work yet` : ''}.</p><button class="btn small accent" data-action="signin">Sign In to Claude</button>`;
+  if (s === 'opening') return `<p>Opening Terminal…</p>`;
+  if (s === 'opened') return `<p>Finish signing in in the Terminal window (pick option 1 if you have a Claude subscription). Then come back here.</p>
+    <button class="btn small accent" data-action="signin-check">I'm Signed In</button>`;
+  if (s === 'checking') return `<p>Checking your sign-in…</p>`;
+  if (s === 'stale') return `<p>Signed in, but the office can't see it yet. Restarting the office usually fixes this.
+    <small>Not done in Terminal yet? Finish there first.</small></p>${restart}`;
+  if (s === 'restarting') return `<p>Restarting the office…</p>`;
+  if (s === 'still') return `<p>Still not signed in. Finish the steps in Terminal, then try again.</p>
+    <button class="btn small" data-action="signin">Sign In to Claude</button><button class="btn small accent" data-action="signin-check">I'm Signed In</button>`;
+  return '';
+}
+function signInBarHTML(p) {
+  if (!signIn.state || !signIn.ids.has(p.id) || p.closed) return '';
+  const name = workerOf(p).name;
+  if (signIn.state === 'ok') return `<div class="signin-bar ok" role="status"><p>You're signed in again, so ${esc(name)} can get back to work.</p>
+    <button class="btn small primary" data-action="signin-retry" data-id="${p.id}">Try Again</button></div>`;
+  return `<div class="signin-bar" role="status">${signInFlowHTML(name)}</div>`;
+}
+function signInPanelHTML() {
+  if (!signInStatus) setTimeout(loadSignInStatus, 0);
+  const st = !signInStatus || signInStatus.loading ? '<p class="muted">Checking…</p>'
+    : signInStatus.failed ? '<p class="muted">Couldn\'t check right now.</p>'
+    : signInStatus.signedIn ? '<p class="ver-done">Signed in</p>' : '<p><b>Not signed in.</b> Critters can\'t work until you sign in.</p>';
+  const flow = signIn.state && signIn.state !== 'ok' && signIn.state !== 'needs' ? `<div class="signin-bar">${signInFlowHTML('')}</div>` : '';
+  return `${st}${flow}<div class="row-btns" style="margin-top:10px">
+    <button class="btn small ${signInStatus && signInStatus.signedIn === false ? 'accent' : ''}" data-action="signin">Sign In to Claude</button>
+    ${inApp() ? '<button class="btn small" data-action="signin-restart">Restart the Office</button>' : ''}</div>`;
+}
+function loadSignInStatus() {
+  if (signInStatus?.loading) return;
+  signInStatus = { loading: true };
+  api('GET', '/api/login-status').then(r => { signInStatus = r; }).catch(() => { signInStatus = { failed: true }; }).finally(renderSignIn);
+}
+async function startSignIn() {
+  signIn.state = 'opening';
+  renderSignIn();
+  try { await api('POST', '/api/login'); signIn.state = 'opened'; }
+  catch (e) { signIn.state = signIn.ids.size ? 'needs' : null; }
+  renderSignIn();
+}
+// Checked by the office itself. When signed in, the office gives stuck critters a fresh start.
+async function checkSignIn({ afterRestart = false } = {}) {
+  signIn.state = 'checking';
+  renderSignIn();
+  let r;
+  try { r = await api('GET', '/api/login-status?fresh=1'); } catch (e) { signIn.state = 'stale'; return renderSignIn(); }
+  signInStatus = r;
+  if (r.signedIn) {
+    signIn.state = signIn.ids.size ? 'ok' : null;
+    if (afterRestart) toast('The office restarted, and Claude is signed in.');
+  } else signIn.state = afterRestart ? 'still' : 'stale';
+  renderSignIn();
+}
+function restartOffice() {
+  const n = busy.size;
+  if (n && !confirm(`${n} critter${n === 1 ? ' is' : 's are'} still working.\n\nRestarting the office stops ${n === 1 ? 'them' : 'everyone'}. Restart anyway?`)) return;
+  // The page reloads after the restart; this note tells it to check the sign-in again.
+  try { localStorage.setItem(RECHECK_KEY, JSON.stringify({ at: Date.now(), ids: [...signIn.ids], open: drawer.id })); } catch (e) {}
+  signIn.state = 'restarting';
+  renderSignIn();
+  window.webkit.messageHandlers.office.postMessage({ kind: 'restart-office' });
+}
+// After a restart (or a reconnect while stuck): check the sign-in again by itself.
+function recheckAfterRestart() {
+  let note = null;
+  try { note = JSON.parse(localStorage.getItem(RECHECK_KEY) || 'null'); localStorage.removeItem(RECHECK_KEY); } catch (e) {}
+  if (note && Date.now() - note.at < 3 * 60e3) {
+    for (const id of note.ids || []) if (find(id)) signIn.ids.add(id);
+    if (note.open && find(note.open) && drawer.id !== note.open) openDrawer(note.open, 'chat');
+    return checkSignIn({ afterRestart: true });
+  }
+  if (signIn.state === 'stale' || signIn.state === 'restarting') checkSignIn({ afterRestart: signIn.state === 'restarting' });
+}
+// Try Again: send the boss's last message again, now to a fresh critter.
+async function retryAfterSignIn(p) {
+  let items = chat?.id === p.id && !chat.loading ? chat.items : null;
+  if (!items && p.sessionId) items = (await api('GET', `/api/chat?session=${encodeURIComponent(p.sessionId)}&dir=${encodeURIComponent(p.folder)}`).catch(() => ({}))).items;
+  const text = (items || []).findLast(x => x.kind === 'user' && x.text?.trim() && !/^\/login\b/i.test(x.text))?.text;
+  signInDone(p.id);
+  if (!text) return toast(`Send ${workerOf(p).name} your message again whenever you're ready.`);
+  signIn.retried[p.id] = Date.now();
+  await api('POST', `/api/projects/${p.id}/message`, { text }).catch(() => {});
+}
+function signInDone(id) {
+  signIn.ids.delete(id);
+  if (!signIn.ids.size && signIn.state === 'ok') signIn.state = null;
+  renderSignIn();
+}
+
 /* ---------- First-time tours ---------- */
 // Two short tours: the office (after the welcome screen) and the inside of a cubicle (the first time one opens).
 // "tray" is where approval cards appear (empty on day one, so no element to point at).
@@ -1590,6 +1711,10 @@ function renderSettings() {
       <section class="panel alerts">
         <h3>Alerts</h3>
         ${alertsHTML()}
+      </section>
+      <section class="panel signin">
+        <h3>Claude Sign-In</h3>
+        <div id="signInPanel">${signInPanelHTML()}</div>
       </section>
       <section class="panel version">
         <h3>Office Version</h3>
@@ -1902,6 +2027,7 @@ function drawerHead(p) {
         ${mate ? `<button class="btn small warn" data-action="send-home" data-id="${p.id}">Send Home</button>` : ''}`}
     </div>
     ${seatRow(p)}
+    ${signInBarHTML(p)}
     ${p.practice && !p.closed ? practiceHTML(p) : ''}
     ${p.closed ? `<div class="note-bar">Closed ${fmtDate(p.closedAt)}. ${esc(w.name)} is back in the meadow.</div>` : ''}
     ${!p.closed && p.inDesktop ? `<div class="note-bar">${
@@ -2354,7 +2480,8 @@ async function updateSlash() {
     commands[p.id] = 'loading';
     api('GET', `/api/projects/${p.id}/commands`).then(r => { commands[p.id] = r.commands; updateSlash(); }).catch(() => { commands[p.id] = []; });
   }
-  const list = commands[p.id];
+  // /login is the office's own sign-in (a critter's chat can't sign in to Claude).
+  const list = Array.isArray(commands[p.id]) ? [SIGNIN_CMD, ...commands[p.id].filter(c => c.name !== 'login')] : commands[p.id];
   const q = m[1].toLowerCase();
   slash.items = Array.isArray(list) ? list.filter(c => c.name.toLowerCase().includes(q)).sort((a, b) => b.name.toLowerCase().startsWith(q) - a.name.toLowerCase().startsWith(q)).slice(0, 40) : [];
   slash.sel = Math.min(slash.sel, Math.max(0, slash.items.length - 1));
@@ -2366,8 +2493,10 @@ async function updateSlash() {
   menu.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
 }
 function closeSlash() { slash.open = false; const menu = $('#slashMenu'); if (menu) { menu.hidden = true; menu.innerHTML = ''; } }
+const SIGNIN_CMD = { name: 'login', description: 'Sign in to Claude. Opens Terminal on this Mac.', hint: '' };
 function pickCommand(name) {
   const box = $('#msg');
+  if (name === 'login') { box.value = ''; autosize(box); closeSlash(); signIn.ids.add(drawer.id); return startSignIn(); }
   box.value = `/${name} `; closeSlash(); box.focus(); autosize(box);
 }
 document.addEventListener('input', e => { if (e.target.id === 'msg') { slash.sel = 0; updateSlash(); } });
@@ -2464,7 +2593,7 @@ function renderOffline() {
 function go(v) {
   view = v;
   if (v === 'boss' || v === 'floor') fetchUsage();
-  if (v === 'settings') loadVersion();
+  if (v === 'settings') { loadVersion(); signInStatus = null; }
   if (!SHOTTING) try { localStorage.setItem('agentOffice.view', v); } catch (e) {}
   window.scrollTo(0, 0);
   main_rerender();
@@ -2506,10 +2635,17 @@ function connect() {
       fetchUsage();
       busy = new Set(ev.busy);
       perms = new Map(ev.permissions.map(r => [r.reqId, r]));
+      for (const id of ev.login?.ids || []) signIn.ids.add(id);
+      if (ev.login?.needed && !signIn.state) signIn.state = 'needs';
       render(); renderDrawer(true); renderHire();
       if (drawer.id && drawer.tab === 'chat') { const p = find(drawer.id); if (p) loadChat(p); }
       applyShot();
       maybeTour();
+      if (!SHOTTING) recheckAfterRestart();
+    } else if (ev.type === 'needsLogin') {
+      signInNeeded(ev.id);
+    } else if (ev.type === 'loginOk') {
+      if (signIn.state && signIn.state !== 'ok') { signIn.state = signIn.ids.size ? 'ok' : null; renderSignIn(); }
     } else if (ev.type === 'project') {
       const i = office.projects.findIndex(p => p.id === ev.project.id);
       const prevSession = i >= 0 ? office.projects[i].sessionId : undefined;
@@ -2599,7 +2735,14 @@ async function sendMsg(p) {
   const drafts = photoDrafts[p.id] || [];
   if (drafts.some(x => x.loading)) return toast('Still adding your photos. One moment.');
   if (!text && !drafts.length) return;
+  // /login can't work inside a critter's chat: run the office's own sign-in instead.
+  if (/^\/login\s*$/i.test(text) && !drafts.length) {
+    box.value = ''; autosize(box); closeSlash();
+    signIn.ids.add(p.id);
+    return startSignIn();
+  }
   if (p.inDesktop && !p.desktopDone && !confirm(`This chat is still open in the Claude desktop app.\n\nSend from the office instead? Only type in one place at a time.`)) return;
+  if (signIn.state === 'ok' && signIn.ids.has(p.id)) signInDone(p.id);
   box.value = ''; autosize(box);
   photoDrafts[p.id] = []; renderPhotoTray(p);
   const photos = drafts.map(({ kind, name, type, data, view, viewType, full, fullType }) => ({ kind, name, type, data, view, viewType, full, fullType }));
@@ -2656,6 +2799,10 @@ document.addEventListener('click', async e => {
     case 'tour-next': return tourStep(1);
     case 'tour-back': return tourStep(-1);
     case 'tour-skip': return endTour(false);
+    case 'signin': return startSignIn();
+    case 'signin-check': return checkSignIn();
+    case 'signin-restart': return restartOffice();
+    case 'signin-retry': return p && retryAfterSignIn(p);
     case 'ver-check': return versionAction('check');
     case 'ver-update':
       if (!confirm('Update the office now?\n\nIt restarts as soon as no critter is working, then this page reloads by itself.')) return;

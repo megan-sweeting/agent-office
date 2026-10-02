@@ -172,11 +172,13 @@ function migrate() {
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const tmp = DATA + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(office, null, 2));
-    fs.renameSync(tmp, DATA);
-  }, 150);
+  saveTimer = setTimeout(saveNow, 150);
+}
+function saveNow() {
+  clearTimeout(saveTimer);
+  const tmp = DATA + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(office, null, 2));
+  fs.renameSync(tmp, DATA);
 }
 const find = id => office.projects.find(p => p.id === id);
 const findWorker = id => office.workers.find(w => w.id === id);
@@ -764,7 +766,7 @@ function personalityPrompt(w) {
 const sdkMode = p => p.permissionMode === 'auto' ? 'auto' : p.permissionMode === 'acceptEdits' || p.permissionMode === 'free' ? 'acceptEdits' : 'default';
 function startWorker(p, { mode } = {}) {
   const queue = makeQueue();
-  const w = { queue, active: false, workerSetStatus: false, q: null };
+  const w = { queue, active: false, workerSetStatus: false, q: null, startedAt: Date.now() };
   const q = query({
     prompt: queue.iterable,
     options: {
@@ -852,6 +854,7 @@ function handleMessage(id, w, m) {
     w.active = (m.queued_turn_count || 0) > 0;
     const items = [{ kind: 'done', cost: m.total_cost_usd, error: m.is_error ? String(m.result || m.subtype) : null }];
     broadcast({ type: 'chat', id, items });
+    if (m.is_error && LOGIN_ERROR.test(items[0].error)) noteLoginError(p, w);
     if (!w.active && w.handoffAfterTurn) {
       broadcast({ type: 'busy', id, busy: false });
       setTimeout(() => {
@@ -869,7 +872,7 @@ function handleMessage(id, w, m) {
       if (w.restartAfterTurn) setTimeout(() => stopWorker(id), 0);
       const f = { unread: true };
       // Finished with nothing new to do: snack break. "Needs you" only when they asked for something.
-      f.status = w.workerSetStatus === 'needs' || w.workerSetStatus === 'blocked' ? w.workerSetStatus : 'break';
+      f.status = w.workerSetStatus === 'needs' || w.workerSetStatus === 'blocked' || w.loginFailed ? w.workerSetStatus || 'needs' : 'break';
       if (p.helpers?.length && f.status === 'break') f.status = 'crew';
       if (p.wrapping) return setTimeout(() => startNewDay(p, w.lastReply || ''), 0);
       changed(p, f);
@@ -1063,6 +1066,66 @@ function stopWorker(id) {
   try { w.q.close(); } catch {}
   for (const [reqId, item] of pending) if (item.req.projectId === id) answer(reqId, 'deny', 'Worker stopped.');
   broadcast({ type: 'busy', id, busy: false });
+}
+
+/* ---------------- Claude sign-in ---------------- */
+// When Claude's login runs out, every critter fails with "Not logged in". A claude process reads the
+// login once, when it starts, so after the boss signs in again any worker started before that needs
+// a fresh start. Their chats carry on: the next message resumes the same session in a new process.
+const LOGIN_ERROR = /not logged in|please run \/login|invalid api key|oauth token (has )?expired/i;
+const OFFICE_STARTED = Date.now();
+const login = { needed: false, ids: new Set() };  // the cubicles that hit the login error
+const loginState = () => ({ needed: login.needed, ids: [...login.ids] });
+const clock = t => new Date(t).toLocaleString('en-GB', { hour12: false });
+
+function noteLoginError(p, w) {
+  w.loginFailed = true;
+  w.restartAfterTurn = true;  // this process will never see a new login
+  login.needed = true;
+  login.ids.add(p.id);
+  console.log(`[${clock(Date.now())}] Not signed in: ${workerName(p)} (${p.name}). Its claude started ${clock(w.startedAt)}; ` +
+    `the office started ${clock(OFFICE_STARTED)} (pid ${process.pid}).`);
+  broadcast({ type: 'needsLogin', id: p.id });
+}
+
+// Run claude from this office, with the workers' environment. On one Mac the login worked from Terminal
+// but not from a long-running office, so a check made anywhere else could wrongly say "signed in".
+function runClaude(args) {
+  return new Promise(resolve => {
+    const child = execFile(CLAUDE_BIN, args, { env: WORKER_ENV, cwd: os.tmpdir(), timeout: 30000, maxBuffer: 1 << 20 },
+      (err, out, errOut) => resolve({ err, out: String(out || ''), text: `${out}\n${errOut}\n${err?.message || ''}` }));
+    child.stdin?.end();
+  });
+}
+async function checkLogin() {
+  if (!CLAUDE_BIN) return false;
+  const r = await runClaude(['auth', 'status', '--json']);
+  let s = null; try { s = JSON.parse(r.out); } catch {}
+  if (typeof s?.loggedIn === 'boolean') return s.loggedIn;
+  // An older claude without "auth status": ask it something tiny instead.
+  const t = await runClaude(['-p', 'ok', '--max-turns', '1', '--output-format', 'json']);
+  return !LOGIN_ERROR.test(t.text);
+}
+
+// After a sign-in: give a fresh start to every worker that hit the login error, and to any idle one
+// (its claude started before the sign-in finished). Busy ones, or ones waiting on the boss or helpers, carry on.
+function freshStartWorkers(signedInAt) {
+  let n = 0;
+  for (const [id, w] of [...workers]) {
+    const p = find(id);
+    const held = w.active || p?.helpers?.length || p?.wrapping || [...pending.values()].some(x => x.req.projectId === id);
+    if (held) { if (w.loginFailed) w.restartAfterTurn = true; continue; }
+    if (w.loginFailed || w.startedAt < signedInAt) { stopWorker(id); n++; }
+  }
+  return n;
+}
+
+function openSignIn() {
+  // Terminal starts its own clean shell, so none of the desktop app's variables can leak into the login.
+  const sh = `'${String(CLAUDE_BIN || 'claude').replace(/'/g, `'\\''`)}' /login`;
+  const script = `tell application "Terminal" to do script "${sh.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  return new Promise(resolve => execFile('osascript', ['-e', 'tell application "Terminal" to activate', '-e', script], { timeout: 20000 },
+    (err, out, errOut) => resolve({ ok: !err, err: String(errOut || err?.message || '').trim() })));
 }
 
 // Photos and files from the boss: each one is saved into the project's "From <name>" folder (so the
@@ -1377,7 +1440,7 @@ const server = http.createServer(async (req, res) => {
       res.write(`data: ${JSON.stringify({
         type: 'hello', office, busy: [...workers.entries()].filter(([, w]) => w.active).map(([k]) => k),
         build: String(fs.statSync(path.join(DIR, 'index.html')).mtimeMs),
-        permissions: [...pending.values()].map(x => x.req), guardLog: guardLog.slice(0, 30), moods: moodPics(),
+        permissions: [...pending.values()].map(x => x.req), guardLog: guardLog.slice(0, 30), moods: moodPics(), login: loginState(),
       })}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));
@@ -1434,6 +1497,24 @@ const server = http.createServer(async (req, res) => {
       setTimeout(restartWhenIdle, 200);
       return send(res, 200, { updated: count, npm, appChanged: files.some(f => f.startsWith('app/')),
         waiting: [...workers.values()].filter(w => w.active).length });
+    }
+    // Sign in to Claude: opens Terminal on this Mac running claude /login (never from a phone).
+    if (a === 'login' && m === 'POST') {
+      if (!CLAUDE_BIN) return send(res, 500, { error: 'Could not find Claude Code on this Mac. Install it, then restart the office.' });
+      const r = await openSignIn();
+      if (!r.ok) console.error('Could not open Terminal for the sign-in:', r.err);
+      return r.ok ? send(res, 200, { ok: true })
+        : send(res, 500, { error: `Couldn't open Terminal. Open it yourself and type: ${CLAUDE_BIN} /login` });
+    }
+    if (a === 'login-status' && m === 'GET') {
+      const signedIn = await checkLogin();
+      let restarted = 0;
+      if (signedIn) {
+        if (login.needed || url.searchParams.has('fresh')) restarted = freshStartWorkers(Date.now());
+        if (login.needed) { login.needed = false; login.ids.clear(); broadcast({ type: 'loginOk' }); }
+      }
+      console.log(`[${clock(Date.now())}] Sign-in check: ${signedIn ? 'signed in' : 'NOT signed in'}${restarted ? `, fresh start for ${restarted} critter${restarted === 1 ? '' : 's'}` : ''}.`);
+      return send(res, 200, { signedIn, serverStartedAt: OFFICE_STARTED, restarted });
     }
     if (a === 'restart' && m === 'POST') {
       restartPending = true;
@@ -1828,6 +1909,14 @@ if (!TS_LOGIN) {
     } catch {}
   });
 }
+
+// The Mac app's Restart the Office stops the office this way: end the critters' claude processes and save first.
+process.on('SIGTERM', () => {
+  console.log(`[${clock(Date.now())}] Stopping the office (pid ${process.pid}).`);
+  for (const id of [...workers.keys()]) stopWorker(id);
+  try { saveNow(); } catch (e) { console.error(e); }
+  setTimeout(() => process.exit(0), 300);
+});
 
 let listenTries = 0;
 server.on('error', e => {

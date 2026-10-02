@@ -95,6 +95,7 @@
   .who-sub { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 10px; }
   .sys { align-self: center; font-size: 13px; color: var(--muted); text-align: center; }
   .sys.err { color: var(--bad); font-weight: 700; }
+  .signin-note { margin: 12px 12px 0; padding: 10px 14px; border-radius: 14px; background: var(--warn-bg); color: var(--warn); font-weight: 700; font-size: 15px; }
   .dots { display: inline-flex; gap: 4px; padding: 4px 2px; }
   .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--moss); animation: blink 1.2s infinite; }
   .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
@@ -172,6 +173,9 @@ const STATUS = {
 };
 let office = { projects: [], workers: [] }, busy = new Set(), perms = new Map();
 let openId = null, chat = null, connected = false, es = null, lastHeard = 0;
+// Critters stuck because Claude isn't signed in. Signing in opens Terminal, so it only works on the Mac.
+let needsLogin = new Set();
+const signInNote = p => `<div class="signin-note" role="status">Claude isn't signed in, so ${esc(workerOf(p).name)} can't work yet. Sign in on your Mac: open Agent Office there and click Sign In to Claude.</div>`;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -297,7 +301,8 @@ function renderThread(toBottom) {
   $('#msg').placeholder = `Message ${w.name}…`;
   $('#stop').hidden = !busy.has(p.id);
   const box = $('#main'), near = toBottom || box.scrollHeight - box.scrollTop - box.clientHeight < 140;
-  let html = !chat || chat.loading ? '<p class="sys">Loading…</p>'
+  let html = needsLogin.has(p.id) ? signInNote(p) : '';
+  html += !chat || chat.loading ? '<p class="sys">Loading…</p>'
     : chat.items.length ? threadHTML(chat.items, p, busy.has(p.id)) : `<p class="sys">Say hello to ${esc(w.name)}.</p>`;
   const mine = asks(p.id);
   html += mine.map(r => askHTML(r, p)).join('');
@@ -338,7 +343,7 @@ function connect() {
   es.onmessage = e => {
     lastHeard = Date.now();
     const ev = JSON.parse(e.data);
-    if (ev.type === 'hello') { office = ev.office; busy = new Set(ev.busy); perms = new Map(ev.permissions.map(r => [r.reqId, r])); if (openId && find(openId)) openChat(openId); else rerender(); }
+    if (ev.type === 'hello') { needsLogin = new Set(ev.login?.ids || []); office = ev.office; busy = new Set(ev.busy); perms = new Map(ev.permissions.map(r => [r.reqId, r])); if (openId && find(openId)) openChat(openId); else rerender(); }
     else if (ev.type === 'project') {
       const i = office.projects.findIndex(p => p.id === ev.project.id);
       const prev = i >= 0 ? office.projects[i].sessionId : null;
@@ -354,6 +359,8 @@ function connect() {
     else if (ev.type === 'permission') { perms.set(ev.req.reqId, ev.req); rerender(); }
     else if (ev.type === 'permission-done') { perms.delete(ev.reqId); rerender(); }
     else if (ev.type === 'toast') toast(ev.text);
+    else if (ev.type === 'needsLogin') { needsLogin.add(ev.id); rerender(); }
+    else if (ev.type === 'loginOk') { needsLogin.clear(); rerender(); }
   };
 }
 function rerender() { openId ? renderThread() : renderList(); }
@@ -380,6 +387,10 @@ async function send() {
   const drafts = p ? drafts_(p.id) : [];
   if (drafts.some(x => x.loading)) return toast('Still adding your photos. One moment.');
   if ((!text && !drafts.length) || !p) return;
+  if (/^\/login\s*$/i.test(text) && !drafts.length) {
+    box.value = ''; grow(); needsLogin.add(p.id); renderThread(true);
+    return toast('Sign in on your Mac: open Agent Office there and click Sign In to Claude.');
+  }
   if (p.inDesktop && !p.desktopDone && !confirm(`${workerOf(p).name}'s chat is open in the Claude desktop app. Send from here instead?`)) return;
   box.value = ''; grow();
   photoDrafts[p.id] = []; renderTray();

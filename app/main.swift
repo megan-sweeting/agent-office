@@ -5,9 +5,13 @@ import Cocoa
 import WebKit
 import UserNotifications
 
-let officeURL = URL(string: "http://localhost:4545")!
+// OFFICE_PORT and AGENT_OFFICE_LOG let a test copy of the app run beside the real office.
+let env = ProcessInfo.processInfo.environment
+let officePort = Int(env["OFFICE_PORT"] ?? "") ?? 4545
+let officeURL = URL(string: "http://localhost:\(officePort)")!
+let logPath = env["AGENT_OFFICE_LOG"] ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Agent Office.log").path
 func appLog(_ line: String) {
-    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Agent Office.log")
+    let url = URL(fileURLWithPath: logPath)
     let text = "[app \(Date())] \(line)\n"
     if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(text.data(using: .utf8)!); try? h.close() }
 }
@@ -101,11 +105,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             p.executableURL = URL(fileURLWithPath: "/bin/bash")
             p.arguments = ["-c", """
                 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-                cd "\(officeFolder.path)" && nohup node server.mjs >> "$HOME/Library/Logs/Agent Office.log" 2>&1 &
+                cd "\(officeFolder.path)" && nohup node server.mjs >> "$AO_LOG" 2>&1 &
                 """]
+            p.environment = env.merging(["AO_LOG": logPath]) { _, new in new }
             try? p.run()
             self.waitForServer(tries: 60, done)
         }
+    }
+
+    // Restart the Office (from the page): stop the office, wait for it to exit, then start it fresh from
+    // the app. A restart the office does by itself starts the new copy from the old one, which may keep
+    // the old copy's problem (one office stopped seeing Claude's sign-in until the app started it again).
+    func restartServer() {
+        appLog("restarting the office (asked by the page)")
+        showMessage("Restarting the office…")
+        DispatchQueue.global().async {
+            let pids = self.serverPids()
+            for pid in pids { kill(pid, SIGTERM) }
+            var tries = 40
+            while tries > 0 && pids.contains(where: { kill($0, 0) == 0 }) { usleep(250_000); tries -= 1 }
+            for pid in pids where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
+            DispatchQueue.main.async {
+                self.ensureServer { ok in
+                    if ok { self.web.load(URLRequest(url: officeURL)) }
+                    else { self.showMessage("The office didn't start again. Check ~/Library/Logs/Agent Office.log, then press Cmd+R.") }
+                }
+            }
+        }
+    }
+
+    // The process listening on the office's port.
+    func serverPids() -> [pid_t] {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        p.arguments = ["-nP", "-t", "-iTCP:\(officePort)", "-sTCP:LISTEN"]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return [] }
+        let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        p.waitUntilExit()
+        return out.split(separator: "\n").compactMap { pid_t($0.trimmingCharacters(in: .whitespaces)) }
     }
 
     func waitForServer(tries: Int, _ done: @escaping (Bool) -> Void) {
@@ -146,6 +186,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: reqId, content: content, trigger: nil)) { err in
                 if let err = err { appLog("notification failed: \(err.localizedDescription)") }
             }
+        } else if kind == "restart-office" {
+            restartServer()
         } else if kind == "test-alert" {
             testNotification()
         } else if kind == "ask-done", let reqId = body["reqId"] as? String {
@@ -179,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     func answer(reqId: String, decision: String) {
         let tokenFile = officeFolder.appendingPathComponent(".office-token")
         guard let token = try? String(contentsOf: tokenFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
-              let url = URL(string: "http://localhost:4545/api/permissions/\(reqId)") else { return }
+              let url = URL(string: "/api/permissions/\(reqId)", relativeTo: officeURL) else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
