@@ -320,13 +320,13 @@
   @media (max-width: 900px) { .guard-cols { grid-template-columns: 1fr; } }
   /* Settings */
   .settings { display: grid; gap: 22px; grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr); align-items: start; }
-  .settings { grid-template-rows: auto auto auto 1fr; }
-  .settings .panel { grid-column: 1; }
+  /* Two columns that stack on their own, so a tall box on one side doesn't leave gaps on the other. */
+  .settings .set-col { display: grid; gap: 22px; min-width: 0; }
+  .settings .guardrails { grid-column: 1 / -1; }
   .settings .you .label:first-of-type { margin-top: 0; }
   .settings .you p { margin: 6px 0 0; font-size: 13px; line-height: 1.45; }
   .settings .alerts p { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
-  .settings .critters-panel { grid-column: 2; grid-row: 1 / span 4; }
-  @media (max-width: 900px) { .settings { grid-template-columns: 1fr; } .settings .alerts, .settings .you, .settings .critters-panel { grid-column: auto; grid-row: auto; } .settings { grid-template-rows: none; } }
+  @media (max-width: 900px) { .settings { grid-template-columns: 1fr; } }
   .panel { background: var(--card); border: 3px solid var(--wall); border-radius: 22px; padding: 18px 22px; }
   .version p { margin: 6px 0 0; font-size: 14px; line-height: 1.45; }
   .version .ver-now code { font-weight: 700; }
@@ -334,11 +334,11 @@
   .version .ver-done { color: var(--ok); font-weight: 700; }
   .panel h3 { margin: 0 0 4px; font-size: 19px; }
   .panel > p { margin: 0 0 14px; color: var(--muted); }
-  .themes { display: grid; grid-template-columns: 1fr; gap: 12px; }
-  .themes button { border: 3px solid var(--line); border-radius: 18px; background: var(--paper); padding: 10px; font-weight: 800; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+  .themes button { border: 3px solid var(--line); border-radius: 18px; background: var(--paper); padding: 8px; font-weight: 800; font-size: 13px; white-space: nowrap; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
   .themes button.on { border-color: var(--accent); background: var(--accent-bg); }
-  .swatch { height: 64px; border-radius: 12px; display: flex; gap: 6px; padding: 10px; align-items: flex-end; border: 1px solid rgba(0,0,0,.08); }
-  .swatch i { width: 18px; height: 18px; border-radius: 50%; }
+  .swatch { height: 44px; border-radius: 12px; display: flex; gap: 4px; padding: 8px; align-items: flex-end; border: 1px solid rgba(0,0,0,.08); }
+  .swatch i { width: 12px; height: 12px; border-radius: 50%; }
   .swatch.light { background: #F8F1DC; } .swatch.dark { background: #232E1C; }
   .swatch.system { background: linear-gradient(135deg, #F8F1DC 50%, #232E1C 50%); }
   .brains { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -1540,6 +1540,7 @@ function renderSettings() {
       <div><h2>Settings</h2></div>
     </div>
     <div class="settings">
+      <div class="set-col">
       <section class="panel you">
         <h3>You</h3>
         <label class="label" for="s-name">Your name</label>
@@ -1563,6 +1564,12 @@ function renderSettings() {
         <h3>Alerts</h3>
         ${alertsHTML()}
       </section>
+      <section class="panel version">
+        <h3>Office Version</h3>
+        <div id="verPanel">${versionHTML()}</div>
+      </section>
+      </div>
+      <div class="set-col">
       <section class="panel critters-panel">
         <h3>Critters</h3>
         ${ps.length ? `<ul class="brains">${ps.flatMap(p => [p, ...seatsOf(p)]).map(p => { const w = workerOf(p); return `
@@ -1584,16 +1591,13 @@ function renderSettings() {
             </div>
           </li>`; }).join('')}</ul>` : '<p class="muted">No cubicles yet. Hire a critter first.</p>'}
       </section>
-      <section class="panel version">
-        <h3>Office Version</h3>
-        <div id="verPanel">${versionHTML()}</div>
-      </section>
       <section class="panel trusted">
         <h3>Trusted Websites</h3>
         <p class="muted">Critters on "Free inside the project folder" can reach these sites without asking you. npm, GitHub, PyPI and Google Fonts are always trusted.</p>
         <label class="label" for="s-trusted">One site per line, like example.com, or *.example.com for all of its subdomains (up to 50)</label>
         <textarea class="field" id="s-trusted" rows="5" placeholder="example.com&#10;*.example.com" spellcheck="false" autocomplete="off">${esc((office.settings?.trustedSites || []).join('\n'))}</textarea>
       </section>
+      </div>
       <section class="panel guardrails">
         <h3>Guardrails</h3>
         <div class="guard-cols">
