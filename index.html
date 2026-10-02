@@ -361,6 +361,32 @@
   .sheet.setup .hint { margin: 6px 0 0; font-size: 13px; }
   .sheet.setup .actions { justify-content: center; }
 
+  /* First-time tour: the fox spotlights one part of the office at a time. */
+  #tour { position: fixed; inset: 0; z-index: 35; --dim: rgba(30, 36, 24, .55); }
+  :root[data-theme="dark"] #tour { --dim: rgba(0, 0, 0, .62); }
+  #tour.no-spot { background: var(--dim); }
+  .tour-spot { position: fixed; border-radius: 22px; pointer-events: none; box-shadow: 0 0 0 4px var(--accent), 0 0 0 9999px var(--dim); transition: top .25s ease, left .25s ease, width .25s ease, height .25s ease; }
+  #tour.no-spot .tour-spot { display: none; }
+  .tour-card { position: fixed; width: min(380px, calc(100vw - 32px)); background: var(--card); border: 3px solid var(--wall); border-radius: 22px; padding: 16px 18px 14px; box-shadow: var(--shadow); transition: top .25s ease, left .25s ease; }
+  .tour-card .who { display: flex; gap: 12px; align-items: flex-start; }
+  .tour-card img { width: 64px; height: 64px; flex: none; }
+  .tour-card h2 { margin: 2px 0 4px; font-size: 19px; }
+  .tour-card p { margin: 0; }
+  .tour-card .foot { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .tour-card .steps { display: flex; gap: 5px; margin-right: auto; }
+  .tour-card .steps i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .tour-card .steps i.on { background: var(--accent); }
+  .row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tour-card.last .steps { width: 100%; margin-bottom: 2px; }
+  .tour-card.last .foot { justify-content: flex-end; }
+  .tour-mock { position: absolute; inset: 8px; background: var(--card); border: 2px solid var(--accent); border-radius: 16px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; gap: 6px; font-size: 13px; }
+  .tour-mock b { font-size: 14px; }
+  .tour-mock code { background: var(--code); border-radius: 6px; padding: 2px 6px; }
+  .tour-mock span { display: flex; gap: 6px; }
+  .tour-mock i { font-style: normal; }
+  .tour-card .skip { background: none; border: 0; color: var(--muted); font-weight: 700; font-size: 13px; padding: 4px 6px; text-decoration: underline; }
+  @media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
+
   /* Forms */
   .field { width: 100%; border: 2px solid var(--line); border-radius: 14px; padding: 9px 12px; background: var(--paper); }
   textarea.field { resize: vertical; min-height: 70px; }
@@ -385,6 +411,19 @@
   .d-top .names span { color: var(--muted); font-size: 13px; }
   .x { border: 0; background: transparent; font-size: 22px; color: var(--muted); padding: 0 4px; align-self: flex-start; }
   .d-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  /* Practice café checklist */
+  .practice { margin-top: 10px; padding: 10px 14px; border: 2px dashed var(--mustard); border-radius: 16px; background: var(--mustard-bg); }
+  .practice-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .practice-top b { font-family: var(--display); font-size: 16px; }
+  .practice-top .muted { margin-right: auto; }
+  .practice ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; }
+  .practice li { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; background: var(--card); border: 2px solid var(--line); font-size: 12px; font-weight: 700; color: var(--muted); }
+  .practice li i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; background: var(--line-soft); color: var(--ink); }
+  .practice li.done { color: var(--ok); border-color: transparent; background: var(--ok-bg); }
+  .practice li.done i { background: var(--ok); color: var(--card); }
+  .practice li.now { color: var(--ink); border-color: var(--accent); }
+  .practice li.now i { background: var(--accent); color: var(--accent-on); }
+  .practice-hint { margin: 8px 0 0; font-size: 14px; font-weight: 700; color: var(--mustard-ink); }
   .note-bar { margin-top: 10px; padding: 9px 14px; border-radius: 14px; font-size: 14px; background: var(--warn-bg); color: var(--warn); font-weight: 700; }
   .tabs { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 2px dashed var(--line); overflow-x: auto; }
   .tab { border: 0; background: transparent; padding: 8px 14px; border-radius: 12px 12px 0 0; color: var(--muted); font-weight: 800; white-space: nowrap; }
@@ -794,6 +833,8 @@ function applyShot() {
     input: { command: 'npm run build', description: 'Build the site so I can check the new hero on mobile' } });
   if (p) openDrawer(p.id, SHOT.get('tab') || 'chat');
   if (SHOT.has('hire')) openHire({ name: 'Holiday Mini Sessions' });
+  if (SHOT.has('tour')) startTour('office', +SHOT.get('tour') || 0);
+  if (SHOT.has('cubetour') && drawer.id) startTour('cubicle', +SHOT.get('cubetour') || 0);
   render();
   // Let the page go quiet so a headless browser can take its picture.
   setTimeout(() => { try { es.close(); } catch (e) {} connected = true; render(); if (drawer.id) renderDrawer(false); }, 2500);
@@ -1238,9 +1279,148 @@ async function finishSetup() {
     office.settings = r.settings;
     $('#modal').classList.remove('open'); $('#modal').innerHTML = '';
     render();
-    toast(ownerName() ? `Welcome, ${ownerName()}! Hire a critter to open your first cubicle.` : 'Welcome! Hire a critter to open your first cubicle.');
+    startTour();
   } catch { if (btn) btn.disabled = false; }
 }
+
+/* ---------- First-time tours ---------- */
+// Two short tours: the office (after the welcome screen) and the inside of a cubicle (the first time one opens).
+// "tray" is where approval cards appear (empty on day one, so no element to point at).
+const TOURS = {
+  office: { setting: 'tourDone', steps: [
+    { at: '.floor', title: 'This is the Floor', text: () => `Hi${ownerName() ? ' ' + ownerName() : ''}! I'm ${esc(tourGuide()?.name || 'the fox')}, and I'll show you around. Every project gets its own cubicle here.` },
+    { at: '#nav-meadow', title: 'The Meadow', text: () => 'Critters wait in the Meadow until you hire them. Each one works on one project at a time.' },
+    { at: '.floor .vacant', title: 'Hiring a critter', text: () => 'Click here to hire a critter. Pick a project folder, and they move into a cubicle, ready to chat.' },
+    { at: '.burrow', title: "The Boss's Burrow", text: () => 'Your burrow holds your to-do list. Critters can read it and tick things off when they finish.' },
+    { at: 'tray', title: 'Approvals', text: () => 'When a critter wants to change files or run a command, a card pops up down here. Read it before you click Allow.' },
+    { at: '#nav-settings', title: 'Settings', text: () => "Change your name, your critters and the safety rules here. You can replay this tour from Settings too. I'll show you inside a cubicle the first time you open one." },
+    { at: '.floor .vacant', when: () => !openProjects().length, title: 'Ready for your first project?', text: () => `Hire a critter for real work, or warm up with a practice project: ${esc(tourGuide()?.name || 'a critter')} makes a little menu for the office café, and a checklist walks you through each part of a cubicle. It uses a few minutes of your Claude plan.` },
+  ] },
+  cubicle: { setting: 'cubeTourDone', steps: [
+    { at: '#drawer .practice', title: 'Your practice checklist', text: n => `Six small steps to try every part of a cubicle. Each one ticks itself off as you go, and the line underneath always says what to do next.` },
+    { at: '#drawer .composer', title: 'Chat with your critter', text: n => `This is where you talk to ${n}. Say what you'd like done in plain words. You can paste or drag in photos and files, and type / for shortcuts.` },
+    { at: '#drawer .plan-btn', title: 'Plan First', text: n => `For bigger jobs, turn on Plan First before you send. ${n} looks around, writes a plan, and waits for your OK before changing anything.` },
+    { at: '#dTabs [data-t="todos"]', title: 'To-Dos', text: n => `This project's to-do list. Each to-do says who it's for: ${n}, you, or both of you together. ${n} ticks theirs off when they're done.` },
+    { at: '#dTabs [data-t="details"]', title: 'Details', text: n => `The project's folder, today's task, where ${n} left off, and how much freedom they have before they must ask you. Close Project lives here too, for when the work is finished.` },
+    { at: '#dTabs [data-t="changes"]', title: 'Changes', text: n => `Every file ${n} changed. If the project uses git, you can save versions and publish to GitHub here. Don't like a change? Press Undo From Here under your message in the chat.` },
+    { at: '#drawer [data-action="new-day"]', title: 'New Shift', text: n => `Each chat is one shift. When a job is done, press New Shift: ${n} writes a summary and starts a fresh chat. Old chats live under Past Shifts. Long chats use more of your plan, so fresh shifts are cheaper.` },
+    { at: '#dTabs [data-t="log"]', title: 'Work Log', text: n => `The chat shows the conversation. The Work Log shows every step behind it: the files ${n} read, the commands they ran and what came back. Handy when something looks odd.` },
+    { at: '#drawer [data-action="add-deskmate"]', title: 'Desk mates', text: n => `Need more hands? Add a Desk Mate and a second critter works on this project at the same time, with their own chat. If the project uses git they get their own copy, and Bring Work Back adds their work in.` },
+  ] },
+};
+let tour = null;           // { key, steps, i } while a tour is showing
+let tourOffered = false;   // the office tour is offered once per page load, so reconnects don't restart it
+const tourGuide = () => office.workers.find(w => w.critter === 'forest-fox') || office.workers[0];
+function startTour(key = 'office', i = 0) {
+  if (key === 'office') {
+    tourOffered = true;
+    hire = null; renderHire();
+    if (drawer.id) closeDrawer();
+    if (view !== 'floor') go('floor');
+  } else {
+    // Inside the open cubicle, on its Chat tab. Stops for buttons this cubicle doesn't have are left out.
+    const p = find(drawer.id);
+    if (!p || p.closed) return;
+    if (drawer.tab !== 'chat') openDrawer(p.id, 'chat');
+  }
+  const steps = TOURS[key].steps.filter(s => (!s.when || s.when()) && (s.at === 'tray' || $(s.at)));
+  if (!steps.length) return;
+  tour = { key, steps, i: Math.max(0, Math.min(steps.length - 1, i)) };
+  renderTour(true);
+}
+function maybeTour() {
+  if (!tourOffered && !SHOTTING && office.settings?.setupDone && office.settings.tourDone === false) startTour();
+}
+function maybeCubeTour() {
+  const p = find(drawer.id);
+  if (!tour && !SHOTTING && p && !p.closed && p.folder && office.settings?.cubeTourDone === false) startTour('cubicle');
+}
+function endTour(thenHire) {
+  const key = tour?.key || 'office', setting = TOURS[key].setting;
+  tour = null;
+  $('#tour')?.remove();
+  if (!SHOTTING) {
+    office.settings = { ...office.settings, [setting]: true };
+    api('PUT', '/api/settings', { [setting]: true }).catch(() => {});
+  }
+  if (thenHire) openHire({ workerId: null });
+  else if (key === 'cubicle') $('#msg')?.focus();
+}
+function tourStep(d) {
+  const i = tour.i + d;
+  if (i < 0) return;
+  if (i >= tour.steps.length) return endTour(tour.key === 'office' && !openProjects().length);
+  tour.i = i;
+  renderTour(true);
+}
+function renderTour(moved) {
+  let el = $('#tour');
+  if (!tour) return el?.remove();
+  const { steps, i } = tour, s = steps[i], last = i === steps.length - 1, w = tourGuide();
+  const hiring = last && tour.key === 'office' && !openProjects().length;
+  const dp = find(drawer.id), n = dp ? esc(workerOf(dp).name) : 'your critter';
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'tour';
+    document.body.append(el);
+  }
+  if (moved) {
+    // Approvals: no card is waiting on day one, so show a pretend one.
+    el.innerHTML = `<div class="tour-spot">${s.at === 'tray' ? `<div class="tour-mock" aria-hidden="true">
+        <b>${esc(w?.name || 'Your critter')} would like to run a command</b><code>npm run build</code>
+        <span><i class="btn small">Deny</i><i class="btn small accent">Allow</i></span></div>` : ''}</div>
+      <div class="tour-card ${last ? 'last' : ''}" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourText">
+        <div class="who">${w ? critterImg(w, '', false) : ''}<div>
+          <h2 id="tourTitle">${s.title}</h2><p id="tourText">${s.text(n)}</p></div></div>
+        <div class="foot">
+          <span class="steps" aria-label="Stop ${i + 1} of ${steps.length}">${steps.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('')}</span>
+          ${last ? '' : '<button class="skip" data-action="tour-skip">Skip tour</button>'}
+          ${i ? '<button class="btn small" data-action="tour-back">Back</button>' : ''}
+          ${hiring
+            ? `<button class="btn small" data-action="tour-skip">Maybe Later</button>${freeWorkers().length ? '<button class="btn small" data-action="tour-practice" title="A small, fun first project with a checklist to follow">Try a Practice Project</button>' : ''}<button class="btn small accent" data-action="tour-next">Hire My First Critter</button>`
+            : `<button class="btn small accent" data-action="tour-next">${last ? (tour.key === 'cubicle' ? 'Start Chatting' : 'All Done') : 'Next'}</button>`}
+        </div></div>`;
+    const t = tourTarget(s);
+    if (t) t.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    el.querySelector('[data-action="tour-next"]').focus({ focusVisible: false });
+  }
+  placeTour();
+}
+function tourTarget(s) {
+  const t = s.at === 'tray' ? null : $(s.at);
+  return t && t.getClientRects().length ? t : null;
+}
+// Put the spotlight on this stop's target and the card beside it, kept on screen.
+function placeTour() {
+  const el = $('#tour');
+  if (!tour || !el) return;
+  const s = tour.steps[tour.i], vw = innerWidth, vh = innerHeight, pad = 8, gap = 14;
+  let r;
+  if (s.at === 'tray') { const tw = Math.min(470, vw - 32); r = { left: vw - 16 - tw, top: vh - 16 - 120, width: tw, height: 120 }; }
+  else r = tourTarget(s)?.getBoundingClientRect();
+  el.classList.toggle('no-spot', !r);
+  const card = el.querySelector('.tour-card'), spot = el.querySelector('.tour-spot');
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  if (!r) { card.style.left = (vw - cw) / 2 + 'px'; card.style.top = (vh - ch) / 2 + 'px'; return; }
+  const box = { left: Math.max(4, r.left - pad), top: Math.max(4, r.top - pad) };
+  box.width = Math.min(vw - 4, r.left + r.width + pad) - box.left;
+  box.height = Math.min(vh - 4, r.top + r.height + pad) - box.top;
+  Object.assign(spot.style, { left: box.left + 'px', top: box.top + 'px', width: box.width + 'px', height: box.height + 'px' });
+  // Below the spotlight if it fits, then above, then beside it, else at whichever end of the window hides less of it.
+  const clampX = x => Math.max(16, Math.min(vw - cw - 16, x)), clampY = y => Math.max(12, Math.min(vh - ch - 12, y));
+  const midY = clampY(box.top + box.height / 2 - ch / 2);
+  let left = clampX(box.left + box.width / 2 - cw / 2), top;
+  if (box.top + box.height + gap + ch <= vh - 12) top = box.top + box.height + gap;
+  else if (box.top - gap - ch >= 12) top = box.top - gap - ch;
+  else if (box.left + box.width + gap + cw <= vw - 16) { left = box.left + box.width + gap; top = midY; }
+  else if (box.left - gap - cw >= 16) { left = box.left - gap - cw; top = midY; }
+  else top = 12 + ch - box.top < box.top + box.height - (vh - ch - 12) ? 12 : vh - ch - 12;
+  card.style.left = left + 'px'; card.style.top = top + 'px';
+}
+addEventListener('resize', placeTour);
+addEventListener('scroll', placeTour, { passive: true, capture: true });
+// The cubicle slides in; place the spotlight again once it has arrived.
+$('#drawer').addEventListener('transitionend', placeTour);
 async function openHire(opts) {
   hire = { mode: 'new', workerId: null, name: '', folder: '', newFolder: true, ...opts };
   if (!hire.workerId) hire.workerId = freeWorkers()[0]?.id || null;
@@ -1270,6 +1450,10 @@ function renderSettings() {
         <label class="label" for="s-root">Where your projects live</label>
         <input class="field" id="s-root" data-setting="projectsRoot" value="${esc(office.settings?.projectsRoot || '')}" placeholder="~/Claude/Projects" autocomplete="off">
         <p class="muted">New project folders go here.</p>
+        <p class="label">New here, or showing someone around?</p>
+        <div class="row-btns"><button class="btn small" data-action="tour-replay">Replay the Office Tour</button>
+          <button class="btn small" data-action="tour-replay" data-t="cubicle">Replay the Cubicle Tour</button>
+          <button class="btn small" data-action="practice-start" title="A small, fun project with a checklist to follow. It uses a few minutes of your Claude plan.">Try the Practice Café</button></div>
       </section>
       <section class="panel">
         <h3>Appearance</h3>
@@ -1522,6 +1706,7 @@ function openDrawer(id, tab) {
   if (tab === 'changes') loadChanges(p);
   if (tab === 'details') loadFolders();
   render();
+  maybeCubeTour();
 }
 function closeDrawer() {
   drawer = { id: null, tab: 'chat' };
@@ -1578,6 +1763,7 @@ function drawerHead(p) {
         ${mate ? `<button class="btn small warn" data-action="send-home" data-id="${p.id}">Send Home</button>` : ''}`}
     </div>
     ${seatRow(p)}
+    ${p.practice && !p.closed ? practiceHTML(p) : ''}
     ${p.closed ? `<div class="note-bar">Closed ${fmtDate(p.closedAt)}. ${esc(w.name)} is back in the meadow.</div>` : ''}
     ${!p.closed && p.inDesktop ? `<div class="note-bar">${
       p.desktopDone ? `${esc(w.name)} finished in the Claude desktop app. Reply here to carry on. Their desktop work is part of this chat now.`
@@ -1586,6 +1772,40 @@ function drawerHead(p) {
     ${!p.closed && !p.folder ? `<div class="note-bar">Pick this project's folder under Details so ${esc(w.name)} can start working.</div>` : ''}
     ${!p.closed && p.planning ? `<div class="note-bar">${esc(w.name)} is planning. Nothing in the project changes until you approve the plan.</div>` : ''}`;
 }
+// The practice café's six steps. Each one ticks itself off on the server when it happens.
+const PRACTICE_STEPS = [
+  ['sent', 'Send the first message', n => 'Your first message is already typed below. Have a read, then press Send.'],
+  ['approved', 'Approve a change', n => `${n} will ask before saving the menu. Read the card in the chat, then press Allow.`],
+  ['looked', 'See your menu', n => `When ${n} says it's done, press Open the Menu to see it in your browser.`],
+  ['undo', 'Change it, then undo', n => `Ask ${n} to add a dessert. Once it's in, press Undo From Here under that message to put the menu back.`],
+  ['shift', 'Start a New Shift', n => `Press New Shift at the top. ${n} writes a short summary of today and starts a fresh chat.`],
+  ['closed', 'Close the project', n => `Last one! Open Details and press Close Project. ${n} heads back to the Meadow.`],
+];
+function practiceHTML(p) {
+  const n = esc(workerOf(p).name), done = PRACTICE_STEPS.filter(([k]) => p.practice[k]).length;
+  const now = PRACTICE_STEPS.find(([k]) => !p.practice[k]);
+  return `<div class="practice">
+    <div class="practice-top"><b>Practice Café</b><span class="muted">${done} of ${PRACTICE_STEPS.length} done</span>
+      ${p.practice.approved || p.practice.looked ? `<button class="btn small" data-action="practice-open" data-id="${p.id}">Open the Menu</button>` : ''}</div>
+    <ol>${PRACTICE_STEPS.map(([k, label], i) => `<li class="${p.practice[k] ? 'done' : now?.[0] === k ? 'now' : ''}"><i>${p.practice[k] ? '✓' : i + 1}</i>${label}</li>`).join('')}</ol>
+    ${now ? `<p class="practice-hint">${now[2](n)}</p>` : ''}</div>`;
+}
+// The café's first message, ready to send: six treats named after critters in this office.
+function practicePrompt(p) {
+  const w = workerOf(p), names = [w, ...office.workers.filter(x => x.id !== w.id)].slice(0, 6).map(x => x.name);
+  return `Hi ${w.name}! This is a practice project, so let's keep it small and fun. Please make one file called index.html: a cosy one-page menu for the Agent Office Café. ` +
+    `List six snacks and drinks, each named after one of these critters: ${names.join(', ')} (for example "${names[0]}'s Honey Toast"). ` +
+    `Give each one a one-line description and a price in acorns, and use warm, cosy colours. Just that one file, please: no other files and nothing to install.`;
+}
+async function startPractice() {
+  let r;
+  try { r = await api('POST', '/api/projects/practice'); } catch (e) { return; }
+  if (!find(r.project.id)) office.projects.push(r.project);
+  go('floor');
+  openDrawer(r.project.id, 'chat');
+  if (!tour) $('#msg')?.focus();
+}
+
 function drawerTabs(p) {
   const tabs = p.closed ? [['past', `Past Shifts (${p.history.length})`], ['details', 'Details']]
     : [['chat', 'Chat'], ['todos', `To-Dos (${homeOf(p).todos.filter(t => !t.done).length})`], ['details', 'Details'], ['changes', 'Changes'], ['past', `Past Shifts (${p.history.length})`], ['log', 'Work Log']];
@@ -1615,6 +1835,7 @@ function renderDrawer(full) {
     }
   }
   if (pendingFocus) { $(pendingFocus)?.focus(); pendingFocus = null; }
+  placeTour();
 }
 
 const photosHTML = imgs => imgs?.length ? `<div class="photos">${imgs.map(src => `<img src="${src}" alt="Photo you sent">`).join('')}</div>` : '';
@@ -1712,12 +1933,13 @@ function renderComposer(p) {
       <button class="btn photo-btn" data-action="add-photos" data-id="${p.id}" title="Add photos or files (or paste / drag them in)" aria-label="Add photos or files" ${p.folder ? '' : 'disabled'}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"></rect><circle cx="9" cy="11" r="2"></circle><path d="m21 17-5-5-8 8"></path></svg></button>
       <input type="file" id="photoIn" multiple hidden>
-      <textarea id="msg" rows="1" placeholder="Message ${esc(w.name)}…" aria-label="Message ${esc(w.name)}" ${p.folder ? '' : 'disabled'}></textarea>
+      <textarea id="msg" rows="1" placeholder="Message ${esc(w.name)}…" aria-label="Message ${esc(w.name)}" ${p.folder ? '' : 'disabled'}>${p.practice && !p.practice.sent && !p.sessionId ? esc(practicePrompt(p)) : ''}</textarea>
       <button class="btn plan-btn ${planNext[p.id] ? 'on' : ''}" data-action="plan-toggle" data-id="${p.id}" aria-pressed="${!!planNext[p.id]}" title="${esc(w.name)} looks around and writes a plan first, then waits for your OK before changing anything" ${p.folder ? '' : 'disabled'}>Plan First</button>
       <button class="btn" data-action="stop" data-id="${p.id}" id="stopBtn" ${busy.has(p.id) ? '' : 'hidden'}>Stop</button>
       <button class="btn primary" data-action="send" data-id="${p.id}" ${p.folder ? '' : 'disabled'}>Send</button>
     </div>
     <div class="hint">${planNext[p.id] ? `<b>Plan First is on:</b> ${esc(w.name)} will plan and wait for your OK before changing anything. · ` : ''}Enter to send · Shift+Enter for a new line · Type / for commands · Paste or drag in photos and files</div>`;
+  if ($('#msg').value) autosize($('#msg'));  // the practice café's message arrives already typed
 }
 
 /* ---------- Photos in chat ---------- */
@@ -2089,6 +2311,7 @@ function render() {
   $('#today').textContent = todayLine();
   renderTray();
   if (pendingFocus && !drawer.id) { $(pendingFocus)?.focus(); pendingFocus = null; }
+  placeTour();
 }
 function renderOffline() {
   $('#app').innerHTML = `<div class="offline">
@@ -2143,6 +2366,7 @@ function connect() {
       render(); renderDrawer(true); renderHire();
       if (drawer.id && drawer.tab === 'chat') { const p = find(drawer.id); if (p) loadChat(p); }
       applyShot();
+      maybeTour();
     } else if (ev.type === 'project') {
       const i = office.projects.findIndex(p => p.id === ev.project.id);
       const prevSession = i >= 0 ? office.projects[i].sessionId : undefined;
@@ -2285,6 +2509,19 @@ document.addEventListener('click', async e => {
     }
     case 'hire-cancel': hire = null; return renderHire();
     case 'setup-go': return finishSetup();
+    case 'tour-next': return tourStep(1);
+    case 'tour-back': return tourStep(-1);
+    case 'tour-skip': return endTour(false);
+    case 'tour-practice': endTour(false); return startPractice();
+    case 'practice-start': return startPractice();
+    case 'practice-open': return api('POST', `/api/projects/${p.id}/practice-open`).catch(() => {});
+    case 'tour-replay': {
+      if (el.dataset.t !== 'cubicle') return startTour();
+      const first = openProjects()[0];
+      if (!first) return toast('Hire a critter first, then the cubicle tour has somewhere to show you.');
+      openDrawer(first.id, 'chat');
+      return startTour('cubicle');
+    }
     case 'create-folder': {
       const r = await api('POST', `/api/projects/${p.id}/create-folder`);
       Object.assign(p, r.project); chat = null; folders = [];
@@ -2453,7 +2690,7 @@ document.addEventListener('click', async e => {
       const mates = seatsOf(p).map(x => workerOf(x).name);
       if (!confirm(`Close ${p.name}?\n\n${w.name}${mates.length ? ` and ${mates.join(', ')}` : ''} go${mates.length ? '' : 'es'} back to the meadow, ready for another project. This shift's chat and notes are filed under Past Shifts. You can reopen the project later.`)) return;
       await api('POST', `/api/projects/${p.id}/close`);
-      toast(`${p.name} is closed. ${w.name} is back in the meadow.`);
+      toast(p.practice ? `Practice done! You've got the hang of it. Hire a critter for a real project whenever you're ready.` : `${p.name} is closed. ${w.name} is back in the meadow.`);
       return closeDrawer();
     }
     case 'stage': patch(p, { stage: +el.dataset.i }); break;
@@ -2676,6 +2913,18 @@ drawerEl.addEventListener('drop', e => {
 });
 
 document.addEventListener('keydown', e => {
+  if (tour) {
+    if (e.key === 'Escape') { e.preventDefault(); return endTour(false); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); return tourStep(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); return tourStep(-1); }
+    if (e.key === 'Tab') {  // keep focus inside the tour card
+      const b = [...document.querySelectorAll('#tour button')], i = b.indexOf(document.activeElement);
+      e.preventDefault();
+      return b[(i + (e.shiftKey ? -1 : 1) + b.length) % b.length]?.focus();
+    }
+    if (!['Enter', ' '].includes(e.key)) e.preventDefault();
+    return;
+  }
   if (e.target.id === 'msg' && slash.open && slash.items.length && ['ArrowDown', 'ArrowUp', 'Tab', 'Enter', 'Escape'].includes(e.key)) {
     e.preventDefault();
     if (e.key === 'Escape') return closeSlash();

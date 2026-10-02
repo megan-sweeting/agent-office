@@ -129,6 +129,9 @@ function migrate() {
   office.settings = { theme: 'system', ...(office.settings || {}) };
   // Offices from before the welcome screen are already set up.
   office.settings.setupDone ??= office.projects?.length > 0;
+  // Offices set up before the tour existed skip it (Settings can replay it).
+  office.settings.tourDone ??= office.settings.setupDone;
+  office.settings.cubeTourDone ??= office.settings.setupDone;
   if (!Array.isArray(office.stickies)) {
     office.stickies = office.whiteboard?.trim() ? [{ id: uid(), text: office.whiteboard.trim(), color: 'mustard' }] : [];
   }
@@ -173,6 +176,13 @@ function changed(p, fields = {}) {
   p.updatedAt = Date.now();
   save();
   broadcast({ type: 'project', project: p });
+}
+
+// The practice café: a small first project whose checklist ticks itself off as the boss tries each part of a cubicle.
+const PRACTICE = ['sent', 'approved', 'looked', 'undo', 'shift', 'closed'];
+function practiceTick(p, step) {
+  if (!p?.practice || p.practice[step] || !PRACTICE.includes(step)) return;
+  changed(p, { practice: { ...p.practice, [step]: true } });
 }
 
 function newProject(fields = {}) {
@@ -420,6 +430,7 @@ function answer(reqId, decision, message) {
   const item = pending.get(reqId);
   if (!item) return false;
   pending.delete(reqId);
+  if (decision !== 'deny') practiceTick(find(item.req.projectId), 'approved');
   if (decision === 'deny' && item.req.toolName === 'ExitPlanMode') {
     item.resolve({ behavior: 'deny', message: message ? `The boss wants changes to the plan: ${message}` : 'The boss wants to keep planning. Ask what they would like changed.' });
   } else if (decision === 'deny') {
@@ -1366,6 +1377,7 @@ const server = http.createServer(async (req, res) => {
       if ('theme' in f && THEMES.includes(f.theme)) office.settings.theme = f.theme;
       if ('name' in f) office.settings.name = String(f.name || '').trim().slice(0, 40);
       if (f.setupDone === true) office.settings.setupDone = true;
+      for (const k of ['tourDone', 'cubeTourDone']) if (typeof f[k] === 'boolean') office.settings[k] = f[k];
       if ('projectsRoot' in f) {
         const r = String(f.projectsRoot || '').trim().replace(/\/+$/, '');
         const abs = r.startsWith('~') ? path.join(HOME, r.slice(1)) : r;
@@ -1463,6 +1475,22 @@ const server = http.createServer(async (req, res) => {
         broadcast({ type: 'project', project: p });
         return send(res, 200, { project: p });
       }
+      if (id === 'practice' && !b && m === 'POST') {
+        const w = office.workers.find(x => x.critter === 'forest-fox' && !isHired(x.id)) || office.workers.find(x => !isHired(x.id));
+        if (!w) return send(res, 400, { error: "Everyone's at a desk. Close a project to free a critter for the practice café." });
+        // A fresh folder: "Practice Café", or "Practice Café 2" and so on if that one already has files.
+        let folder, n = 1;
+        do folder = path.join(projectsRoot(), `Practice Café${n > 1 ? ' ' + n : ''}`);
+        while (n++ < 50 && fs.existsSync(folder) && fs.readdirSync(folder).some(x => !x.startsWith('.')));
+        try { fs.mkdirSync(folder, { recursive: true }); } catch (e) { return send(res, 400, { error: `Couldn't make the practice folder: ${firstLine(e.message)}` }); }
+        // Ask before everything, so the boss gets to try an approval.
+        const p = newProject({ workerId: w.id, name: 'Practice Café', folder, permissionMode: 'default',
+          task: 'Practice: make a menu for the office café', practice: {} });
+        office.projects.push(p);
+        save();
+        broadcast({ type: 'project', project: p });
+        return send(res, 200, { project: p });
+      }
       const p = find(id);
       if (!p) return send(res, 404, { error: 'No such cubicle.' });
 
@@ -1509,6 +1537,7 @@ const server = http.createServer(async (req, res) => {
         let saved;
         try { saved = await saveAttachments(p, list); } catch (e) { return send(res, 400, { error: e.message }); }
         sendMessage(p, (text || '').trim(), saved, { plan: !!plan });
+        practiceTick(p, 'sent');
         return send(res, 200, { ok: true });
       }
       if (b === 'read' && m === 'POST') {
@@ -1521,6 +1550,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (b === 'new-day' && m === 'POST') {
         const { now } = await body(req);
+        practiceTick(p, 'shift');
         // With a chat today, the critter wraps up first; the day flips when they finish.
         if (!now && !p.closed && p.sessionId && p.folder && isDir(p.folder) && CLAUDE_BIN) {
           if (!p.wrapping) { changed(p, { wrapping: true }); sendMessage(p, wrapUp()); }
@@ -1541,6 +1571,13 @@ const server = http.createServer(async (req, res) => {
         changed(p, { folder, sessionId: null });
         return send(res, 200, { project: p });
       }
+      if (b === 'practice-open' && m === 'POST') {
+        const file = p.practice && p.folder && path.join(p.folder, 'index.html');
+        if (!file || !fs.existsSync(file)) return send(res, 400, { error: `${workerName(p)} hasn't made the menu yet. Send the first message and approve the change.` });
+        execFile('open', [file]);
+        practiceTick(p, 'looked');
+        return send(res, 200, { ok: true });
+      }
       if (b === 'open-folder' && m === 'POST') {
         if (!p.folder || !isDir(p.folder)) return send(res, 400, { error: 'This cubicle has no project folder yet.' });
         execFile('open', [p.folder]);
@@ -1552,6 +1589,7 @@ const server = http.createServer(async (req, res) => {
         stopWorker(p.id);
         fileToday(p);
         changed(p, { closed: true, closedAt: Date.now(), status: 'home', task: '', note: '', sessionId: null, unread: false, inDesktop: false, day: p.day + 1 });
+        practiceTick(p, 'closed');
         return send(res, 200, { project: p });
       }
       if (b === 'reopen' && m === 'POST') {
@@ -1606,6 +1644,7 @@ const server = http.createServer(async (req, res) => {
             `${n} file${n === 1 ? ' was' : 's were'} restored${n ? `: ${r.filesChanged.map(f => path.relative(p.folder, f) || f).slice(0, 15).join(', ')}` : ''}. ` +
             `Work you did after that message is no longer in those files (changes made by commands, not file edits, were not undone). Re-read files before editing them.`;
           save();
+          practiceTick(p, 'undo');
           broadcast({ type: 'chat', id: p.id, items: [{ kind: 'system', text: `Undo: ${n} file${n === 1 ? '' : 's'} put back to before "${String(text || '').slice(0, 60)}".` }] });
         }
         return send(res, 200, r);
