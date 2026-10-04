@@ -1884,16 +1884,19 @@ function todoItem(p, t, w) {
       <button class="mini" data-action="del-todo" data-id="${p.id}" data-t="${t.id}" aria-label="Delete to-do">✕</button>
     </li>`;
 }
-// To-do groups you've folded shut stay shut (remembered in this browser).
-const folded = new Set();
+// To-do groups you've folded shut stay shut (remembered in this browser). In the Boss's Burrow
+// they start folded instead, and the ones you open stay open.
+const folded = new Set(), burrowOpen = new Set();
 try { JSON.parse(localStorage.getItem('agentOffice.folded') || '[]').forEach(k => folded.add(k)); } catch (e) {}
+try { JSON.parse(localStorage.getItem('agentOffice.burrowOpen') || '[]').forEach(k => burrowOpen.add(k)); } catch (e) {}
 document.addEventListener('toggle', e => {
   const k = e.target.dataset?.fold;
   if (!k) return;
-  e.target.open ? folded.delete(k) : folded.add(k);
-  try { localStorage.setItem('agentOffice.folded', JSON.stringify([...folded])); } catch (err) {}
+  const burrow = e.target.dataset.burrow !== undefined, set = burrow ? burrowOpen : folded;
+  e.target.open === burrow ? set.add(k) : set.delete(k);
+  try { localStorage.setItem(burrow ? 'agentOffice.burrowOpen' : 'agentOffice.folded', JSON.stringify([...set])); } catch (err) {}
 }, true);
-function todoList(p) {
+function todoList(p, { burrow = false } = {}) {
   const w = workerOf(p);
   if (!p.todos.some(t => !t.done)) return '<div class="empty-note">Nothing on the list.</div>';
   const groups = [['critter', `For ${w.name}`], ['together', 'Together'], ['boss', 'For You'], [null, 'Not Sorted Yet']];
@@ -1901,7 +1904,8 @@ function todoList(p) {
     const list = p.todos.filter(t => !t.done && (t.owner || null) === o);
     if (!list.length) return '';
     const key = `${p.id}:${o || 'none'}`;
-    return `<details class="todo-group g-${o || 'none'}" data-fold="${key}" ${folded.has(key) ? '' : 'open'}>
+    const open = burrow ? burrowOpen.has(key) : !folded.has(key);
+    return `<details class="todo-group g-${o || 'none'}" data-fold="${key}" ${burrow ? 'data-burrow' : ''} ${open ? 'open' : ''}>
       <summary title="Show or hide this list"><h5><svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"></path></svg>${esc(label)} <span>${list.length}</span></h5></summary>
       <ul class="list">${list.map(t => todoItem(p, t, w)).join('')}</ul></details>`;
   }).join('');
@@ -1930,7 +1934,7 @@ function folderHTML(p) {
     <div class="cols">
       <div>
         <h4><span>To-dos for ${esc(w.name)} (${open})</span></h4>
-        ${todoList(p)}
+        ${todoList(p, { burrow: true })}
         ${todoForm(p)}
       </div>
       <div class="ideas">
