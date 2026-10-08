@@ -249,18 +249,14 @@ function renderList() {
 const FILE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>';
 const filesHTML = names => names?.length ? `<div class="photos">${names.map(n => `<span class="file-chip">${FILE_ICON}<span>${esc(n)}</span></span>`).join('')}</div>` : '';
 const photosHTML = imgs => imgs?.length ? `<div class="photos">${imgs.map(src => `<img src="${src}" alt="Photo you sent">`).join('')}</div>` : '';
-const QUIET = /^(mcp__office__|TodoWrite$)/;
 function threadHTML(items, p, working) {
   const w = workerOf(p), turns = [];
   let cur = { user: null, items: [] };
   for (const x of items) { if (x.kind === 'user') { if (cur.user || cur.items.length) turns.push(cur); cur = { user: x, items: [] }; } else cur.items.push(x); }
   if (cur.user || cur.items.length) turns.push(cur);
-  return turns.map((t, i) => {
+  return turns.map(t => {
     let out = t.user ? `<div class="row me"><div class="stack">${photosHTML(t.user.images)}${filesHTML(t.user.files)}${t.user.text ? `<div class="bubble">${md(t.user.text)}</div>` : ''}</div></div>` : '';
-    if (working && i === turns.length - 1) return out;
-    let last = -1; t.items.forEach((x, j) => { if (x.kind === 'tool' && !QUIET.test(x.name)) last = j; });
-    let replies = t.items.filter((x, j) => x.kind === 'assistant' && j > last);
-    if (!replies.length) { const all = t.items.filter(x => x.kind === 'assistant'); if (all.length) replies = [all.at(-1)]; }
+    const replies = t.items.filter(x => x.kind === 'assistant' && x.text?.trim());
     if (replies.length) out += `<div class="row them">${img(w, 'av')}<div class="stack">${replies.map(x => `<div class="bubble">${md(x.text)}</div>`).join('')}</div></div>`;
     for (const x of t.items) {
       if (x.kind === 'system') out += `<div class="sys">${esc(x.text)}</div>`;
