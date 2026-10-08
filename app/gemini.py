@@ -2,8 +2,10 @@
 """Make critter mood pictures with the Gemini API.
 
   python3 app/gemini.py <mood> [critter ...] [--redo] [--yes]
+  python3 app/gemini.py fix <critter> <normal|mood> "<change>"
   e.g. python3 app/gemini.py focused forest-bunny
        python3 app/gemini.py curious --yes        (all 16 hireable critters)
+       python3 app/gemini.py fix cottage-kitten needs "remove the pencil behind its ear"
 
 Sends assets/critters/<critter>.png and the mood's prompt to Gemini, keeps the raw
 result in .gemini-raw/, then cuts and places it with mood.py so it lands in
@@ -15,6 +17,7 @@ The API key comes from GEMINI_API_KEY or ~/.config/agent-office/gemini-key.
 """
 import base64
 import http.client
+import io
 import json
 import os
 import re
@@ -43,28 +46,51 @@ MOODS = {
                'a small round "ooh" mouth, leaning in slightly as if it just spotted something interesting',
     'proud': 'Show it proud and beaming after finishing a job: a big happy smile, chin lifted, chest '
              'puffed out, rosy cheeks, and one small sparkle in the air beside its head',
-    'stuck': 'Show it frazzled and stuck on a problem, puzzled rather than angry: eyebrows tilted up in the middle, a wobbly '
-             'uncertain mouth, a small sweat drop on its forehead, and a little scribbly tangle '
-             'cloud above its head',
-    'relaxed': 'Show it relaxed and content on a break: calm, level eyebrows (not raised, not worried), '
-               'a gentle contented smile, rosy cheeks and loose, easy shoulders. It looks happy and '
-               'at ease, never anxious. Eyes fully open, not sleepy or half-closed',
+    'stuck': 'Show it gently puzzled and stuck on a problem, cute and never scary or angry: a small '
+             'unsure wobbly mouth, a little sweat drop beside its head, and a small scribbly tangle '
+             'inside a thought bubble that floats clearly above its head, not touching it',
+    # Shown on a snack break, so the critter swaps its work prop for a snack.
+    'relaxed': 'Show it happily on a snack break: a gentle contented smile and rosy cheeks, eyes fully '
+               'open, about to take a happy bite',
 }
 PROMPT = ('Create an image of this exact same {animal} character: same watercolor style, same outfit, '
           'accessories and props, same proportions and colors, same framing, on a plain white background. '
-          '{mood}. Keep the same pose and stance as the original. {extra}Every prop must be held, never floating. Do not add any new objects: only the props in the original, and paws that are empty in the original stay empty. Same number of arms and legs as the '
-          'original, no extra limbs. Keep the eyes exactly like the original: solid dark round eyes with '
-          'only small white shine dots, no whites of the eyes.')
-# Per-critter additions to the prompt.
+          '{mood}. Keep the same pose and stance as the original. {extra}{props} Same number of arms and '
+          'legs as the original, no extra limbs. Keep the eyes exactly like the original: solid dark round '
+          'eyes with only small white shine dots, no whites of the eyes.')
+PROPS = ('Every prop must be held, never floating. Do not add any new objects: only the props in the '
+         'original, and paws that are empty in the original stay empty.')
+# Moods that change what the critter holds.
+PROPS_FOR = {
+    'relaxed': 'Put away whatever it was holding in its paws (keep clothes, hats, headphones, glasses and '
+               'backpacks on) and instead it holds one small snack that suits a {animal}, like a cookie, '
+               'berry or tiny sandwich. The snack is held, never floating. No other new objects.',
+}
+# Per-critter additions to the prompt. A "<critter>-<mood>" entry replaces the critter's own for that mood.
 EXTRA = {
     'meadow-fawn': 'She stands on three legs and holds the tablet with her fourth leg; keep exactly that '
                    'pose and never raise another hoof. ',
+    'meadow-fawn-relaxed': 'She stands on three legs and holds the snack with her fourth leg instead of the '
+                           'tablet; never raise another hoof. ',
     'meadow-redpanda': 'Its paws hold its backpack straps and nothing else: no map, paper or book. ',
+    'meadow-redpanda-relaxed': 'It keeps its backpack on. ',
     'cottage-hedgehog': 'It keeps holding its paintbrush. ',
+    'cottage-hedgehog-relaxed': 'It wears nothing at all, exactly like the original: no hat, glasses, '
+                                'headphones or bag. ',
+    'forest-frog-relaxed': 'The laptop and its little wooden desk are both put away, nothing in front of it. ',
+    'cottage-kitten': 'It has no pencil anywhere. ',
     'garden-turtle': 'It keeps its round glasses on. ',
-    # Critter-and-mood rules, e.g. the owl's brow feathers read as a frown unless told otherwise.
-    'forest-owl-stuck': 'Its brow feathers slope UP in the middle, puzzled and unsure, not frowning. ',
+    'garden-mole': 'It is seen from the side, so only ONE eye shows, exactly like the original. ',
+    'forest-owl-stuck': 'No eyebrows or frown lines at all: show the puzzlement with a slight head tilt '
+                        'and a small unsure beak. ',
+    'cottage-hedgehog-curious': 'Wide open friendly face, eyebrows raised high, absolutely not frowning. '
+                                'It keeps holding its paintbrush. ',
+    'garden-lamb-stuck': 'Keep its face sweet and soft like the original: just slightly worried eyebrows '
+                         'and a tiny wobbly mouth. ',
 }
+FIX = ('Edit this image of a {animal} character: {change}. Change nothing else: same watercolor style, '
+       'pose, outfit, colors, proportions and framing, on a plain white background. Keep the eyes exactly '
+       'as they are.')
 
 
 def critters():
@@ -84,11 +110,24 @@ def api_key():
     return key
 
 
-def generate(key, critter, animal, mood):
+def mood_prompt(critter, animal, mood):
+    extra = EXTRA.get(f'{critter}-{mood}', EXTRA.get(critter, ''))
+    props = PROPS_FOR.get(mood, PROPS).format(animal=animal)
+    return PROMPT.format(animal=animal, mood=MOODS[mood], extra=extra, props=props)
+
+
+def on_white(path):
+    """The picture as PNG bytes on a white background, so see-through parts don't read as black."""
+    im = Image.open(path).convert('RGBA')
+    bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
+    bg.alpha_composite(im)
+    buf = io.BytesIO()
+    bg.convert('RGB').save(buf, 'PNG')
+    return buf.getvalue()
+
+
+def generate(key, png, prompt):
     """Ask Gemini for the picture; returns the image bytes."""
-    extra = EXTRA.get(critter, '') + EXTRA.get(f'{critter}-{mood}', '')
-    prompt = PROMPT.format(animal=animal, mood=MOODS[mood], extra=extra)
-    png = (ROOT / 'assets/critters' / f'{critter}.png').read_bytes()
     body = json.dumps({
         'contents': [{'parts': [
             {'inline_data': {'mime_type': 'image/png', 'data': base64.b64encode(png).decode()}},
@@ -139,9 +178,31 @@ def sheet(mood, names):
     return dest
 
 
+def fix(args):
+    """Edit one existing picture: fix <critter> <normal|mood> "<change>"."""
+    if len(args) != 3:
+        sys.exit(__doc__)
+    critter, mood, change = args
+    pool = critters()
+    if critter not in pool:
+        sys.exit('Unknown critter: ' + critter)
+    ref_path = ROOT / 'assets/critters' / f'{critter}.png'
+    dest = ref_path if mood == 'normal' else ROOT / 'assets/critters/moods' / f'{critter}-{mood}.png'
+    if not dest.exists():
+        sys.exit(f'No picture yet: {dest.relative_to(ROOT)}')
+    RAW.mkdir(exist_ok=True)
+    raw = RAW / f'{critter}-{mood}-fix.png'
+    raw.write_bytes(generate(api_key(), on_white(dest), FIX.format(animal=pool[critter], change=change)))
+    ref = Image.open(ref_path).convert('RGBA')
+    place(cut(raw), ref).save(dest, optimize=True)
+    print('Saved', dest.relative_to(ROOT))
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     redo, yes = '--redo' in sys.argv, '--yes' in sys.argv
+    if args and args[0] == 'fix':
+        return fix(args[1:])
     if not args or args[0] not in MOODS:
         sys.exit(__doc__ + '\nMoods: ' + ', '.join(MOODS))
     mood, pool = args[0], critters()
@@ -159,11 +220,12 @@ def main():
         print(f'{n} {mood}…', end=' ', flush=True)
         try:
             raw = RAW / f'{n}-{mood}.png'
-            raw.write_bytes(generate(key, n, pool[n], mood))
+            png = (ROOT / 'assets/critters' / f'{n}.png').read_bytes()
+            raw.write_bytes(generate(key, png, mood_prompt(n, pool[n], mood)))
             ref = Image.open(ROOT / 'assets/critters' / f'{n}.png').convert('RGBA')
             dest = ROOT / 'assets/critters/moods' / f'{n}-{mood}.png'
             dest.parent.mkdir(exist_ok=True)
-            place(cut(raw), ref).save(dest, optimize=True)
+            place(cut(raw), ref, by_height=mood in PROPS_FOR).save(dest, optimize=True)
             print('saved')
         except Exception as e:  # keep going so one bad picture doesn't stop the batch
             print('failed:', e)

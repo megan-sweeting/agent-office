@@ -5,6 +5,8 @@
 Use `app/gemini.py`, which calls the Gemini API directly. The Gemini website fails from automated Chrome tabs ("Something went wrong (1155)").
 
 - `python3 app/gemini.py <mood> [critter ...]`: no critters means all 16 hireable ones. Moods and their prompts are in the `MOODS` dict at the top; per-critter rules (Clover's three-legged pose, the red panda's empty paws) are in `EXTRA`.
+- "relaxed" is the snack-break face: the critter puts its work prop away and holds a snack, so it is sized by height instead of by the width of its lower body.
+- `python3 app/gemini.py fix <critter> <normal|mood> "<change>"` edits one existing picture (e.g. removing the kitten's pencil). `normal` edits the critter's main picture.
 - Existing pictures are skipped; add `--redo` to replace them. More than 2 pictures stops with the count and cost until you add `--yes`.
 - The key comes from `GEMINI_API_KEY` or `~/.config/agent-office/gemini-key`, and is only sent in the `x-goog-api-key` header. Never print, log or commit it.
 - Raw results and the contact sheet (original | new, all 16 rows) go to `.gemini-raw/` (git-ignored). Check `.gemini-raw/sheet-<mood>.png` for new objects, extra legs, eye whites and floating props, then `--redo` the bad ones.

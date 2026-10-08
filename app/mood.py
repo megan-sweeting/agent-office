@@ -52,11 +52,12 @@ def cut(src):
     return im
 
 
-def place(im, ref):
-    """Scale and position to match the normal picture's width and feet line."""
-    (rl, _, rr, _), (_, _, _, rb) = lower_width(ref.split()[3])
+def place(im, ref, by_height=False):
+    """Scale and position to match the normal picture's width and feet line.
+    by_height matches the overall height instead, for moods where the critter puts its prop down."""
+    (rl, _, rr, _), (_, rt, _, rb) = lower_width(ref.split()[3])
     (ml, _, mr, _), (l, t, r, b) = lower_width(im.split()[3])
-    k = (rr - rl) / (mr - ml)
+    k = (rb - rt) / (b - t) if by_height else (rr - rl) / (mr - ml)
     im = im.crop((l, t, r, b))
     im = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
     out = Image.new('RGBA', ref.size, (0, 0, 0, 0))
