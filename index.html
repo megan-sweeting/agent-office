@@ -250,6 +250,29 @@
   .vacant .peek img { width: 64px; height: 64px; margin: 0 -8px; }
   .empty { text-align: center; color: var(--muted); padding: 20px 0; }
 
+  /* Gone home: a garden fence with a lit cottage, then the evening floor */
+  .after-hours {
+    margin-top: 34px; padding: 0 18px 22px; border-radius: 30px;
+    background: linear-gradient(180deg, var(--sleep-bg), color-mix(in srgb, var(--sleep-bg) 35%, var(--paper)) 260px, var(--paper));
+  }
+  .home-time { display: flex; align-items: center; gap: 14px; padding: 18px 0 20px; }
+  .fence {
+    flex: 1; height: 24px; min-width: 20px; opacity: .8;
+    background:
+      linear-gradient(var(--sleep), var(--sleep)) 0 8px / 100% 3px no-repeat,
+      linear-gradient(var(--sleep), var(--sleep)) 0 16px / 100% 3px no-repeat,
+      repeating-linear-gradient(90deg, var(--sleep) 0 5px, transparent 5px 22px) 0 2px / 100% 22px no-repeat;
+    -webkit-mask: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+            mask: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
+  .home-sign { display: flex; align-items: center; gap: 12px; max-width: 520px; color: var(--sleep); }
+  .home-sign svg { flex: none; }
+  .home-sign b { display: block; font-family: var(--display); font-size: 21px; line-height: 1.15; }
+  .home-sign small { display: block; font-size: 14px; font-weight: 700; color: var(--muted); }
+  .after-hours .cube { border-color: color-mix(in srgb, var(--wall) 55%, var(--sleep-bg)); }
+  .after-hours .cube .wall { background: color-mix(in srgb, var(--wall) 55%, var(--sleep-bg)); }
+  @media (max-width: 640px) { .after-hours { padding: 0 10px 16px; } .fence { min-width: 12px; } .home-sign small { font-size: 13px; } }
+
   .shelf { margin-top: 30px; }
   .shelf summary { cursor: pointer; font-family: var(--display); font-weight: 700; font-size: 18px; list-style: none; display: flex; align-items: center; gap: 8px; }
   .shelf summary::-webkit-details-marker { display: none; }
@@ -1269,17 +1292,46 @@ function renderFloor() {
       ${ps.length > 1 ? `<label class="floor-sort">Sort by <select class="field" id="floor-sort">${Object.entries(FLOOR_SORTS).map(([k, [label]]) =>
         `<option value="${k}" ${k === floorSort ? 'selected' : ''}>${label}</option>`).join('')}</select></label>` : ''}</div>` : ''}
     <div class="floor">
-      ${ps.map(cubeHTML).join('')}
+      ${ps.filter(p => !goneHome(p)).map(cubeHTML).join('')}
       <button class="vacant" data-action="hire">
         <span>${peek.length ? `<span class="peek">${peek.map(w => critterImg(w, '', false)).join('')}</span>` : ''}${freeWorkers().length ? `Hire a critter<br><small class="muted">${freeWorkers().length} waiting in the meadow</small>`
           : `Everyone's at a desk<br><small class="muted">Close a quiet project to free a critter</small>`}</span>
       </button>
     </div>
+    ${afterHoursHTML(ps.filter(goneHome))}
     ${closed.length ? `<details class="shelf"><summary>Closed projects (${closed.length})</summary>
       <ul class="closed-list">${closed.map(p => { const w = workerOf(p); return `
         <li>${critterImg(w, '', false)}<div class="what"><b>${esc(p.name)}</b><span>With ${esc(w.name)} · ${p.day - 1} day${p.day - 1 === 1 ? '' : 's'} · closed ${fmtDate(p.closedAt)}</span></div>
           <button class="btn small" data-action="open" data-id="${p.id}" data-t="past">Past Shifts</button>
           <button class="btn small primary" data-action="reopen" data-id="${p.id}">Reopen</button></li>`; }).join('')}</ul></details>` : ''}`;
+}
+
+// Cubicles whose critters (and desk mates) have all gone home sit below the garden fence.
+// Messaging one wakes it, and it moves back up to the floor while it works.
+const goneHome = p => [p, ...seatsOf(p)].every(m => m.status === 'home' && !busy.has(m.id) && !askingCount(m.id));
+const andList = xs => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+function afterHoursHTML(ps) {
+  if (!ps.length) return '';
+  const names = ps.map(p => workerOf(p).name), shown = names.length > 4 ? [...names.slice(0, 3), `${names.length - 3} more`] : names;
+  return `<section class="after-hours" aria-label="Gone home">
+    <div class="home-time" role="separator">
+      <span class="fence" aria-hidden="true"></span>
+      <div class="home-sign">
+        <svg viewBox="0 0 64 52" width="58" height="47" fill="none" aria-hidden="true">
+          <path d="M50 4a8 8 0 1 0 8 10 6.5 6.5 0 1 1-8-10z" fill="var(--mustard)"></path>
+          <circle cx="8" cy="8" r="1.6" fill="var(--sleep)"></circle><circle cx="18" cy="3" r="1.2" fill="var(--sleep)"></circle><circle cx="40" cy="6" r="1.2" fill="var(--sleep)"></circle>
+          <path d="M14 26 32 12l18 14v22H14z" fill="var(--card)" stroke="var(--sleep)" stroke-width="2.5" stroke-linejoin="round"></path>
+          <path d="M10 28 32 10l22 18" stroke="var(--berry)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+          <rect x="20" y="30" width="9" height="8" rx="1.5" fill="var(--mustard)"></rect>
+          <path d="M36 48V36a4 4 0 0 1 8 0v12" fill="var(--moss)"></path>
+          <path d="M4 48h56" stroke="var(--moss)" stroke-width="3" stroke-linecap="round"></path>
+        </svg>
+        <div><b>Gone Home</b><small>${esc(andList(shown))} ${names.length === 1 ? 'has' : 'have'} clocked out. See you next shift!</small></div>
+      </div>
+      <span class="fence" aria-hidden="true"></span>
+    </div>
+    <div class="floor">${ps.map(cubeHTML).join('')}</div>
+  </section>`;
 }
 
 function cubeHTML(p) {
