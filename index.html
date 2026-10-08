@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent Office</title>
+<title>Burrow &amp; Co.</title>
 <script>
   // Pick light or dark before the page paints, from the last-used setting.
   (function () {
@@ -757,7 +757,7 @@
 <header class="topbar">
   <div class="brand">
     <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="var(--moss)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 32c0-14 10-24 24-24 0 14-10 24-24 24z"></path><path d="M8 32 22 18"></path></svg>
-    <div><h1>Agent Office</h1><p id="today"></p></div>
+    <div><h1>Burrow &amp; Co.</h1><p id="today"></p></div>
   </div>
   <nav>
     <span class="conn" id="conn"></span>
@@ -1401,7 +1401,7 @@ function renderSetup(m) {
   const fox = office.workers.find(w => w.critter === 'forest-fox') || office.workers[0];
   m.innerHTML = `<div class="sheet setup" role="dialog" aria-labelledby="setupTitle">
     ${fox ? critterImg(fox, '', false) : ''}
-    <h2 id="setupTitle">Welcome to Agent Office</h2>
+    <h2 id="setupTitle">Welcome to Burrow &amp; Co.</h2>
     <p class="sub">Two quick things and your office is ready. You can change both later in Settings.</p>
     <label class="label" for="setup-name">What should the critters call you?</label>
     <input class="field" id="setup-name" placeholder="Your first name" maxlength="40" autocomplete="given-name">
@@ -1493,7 +1493,7 @@ function renderSignIn() {
 function signInFlowHTML(name) {
   const s = signIn.state;
   const restart = inApp() && !signIn.manualRestart ? '<button class="btn small accent" data-action="signin-restart">Restart the Office</button>'
-    : '<span>Quit Agent Office and open it again. If you started it from Terminal, press Control-C there and start it again.</span>';
+    : '<span>Quit Burrow &amp; Co. and open it again. If you started it from Terminal, press Control-C there and start it again.</span>';
   if (s === 'needs') return `<p>Claude isn't signed in${name ? `, so ${esc(name)} can't work yet` : ''}.</p><button class="btn small accent" data-action="signin">Sign In to Claude</button>`;
   if (s === 'opening') return `<p>Opening Terminal…</p>`;
   if (s === 'opened') return `<p>Finish signing in in the Terminal window (pick option 1 if you have a Claude subscription). Then come back here.</p>
@@ -1842,7 +1842,7 @@ function renderSettings() {
               <li>Changing core Mac files, apps or system settings</li>
               <li>Anything touching passwords, keys, the keychain or browser data</li>
               <li>Admin (sudo) commands, shutting down, disks, background services</li>
-              <li>Changing the Agent Office itself or Claude's own settings</li>
+              <li>Changing Burrow &amp; Co. itself or Claude's own settings</li>
               <li>Changing files outside their own project folder</li>
               <li>Deleting folders, pushing code, publishing, or installing software</li>
               <li>Running scripts straight from the internet</li>
@@ -1859,9 +1859,9 @@ function renderSettings() {
 function alertsHTML() {
   if (window.webkit?.messageHandlers?.office) return `
     <p>When a critter asks "May I?" and the office isn't in front, a Mac notification pops up with Allow and Not Now buttons.</p>
-    <p class="muted">To change how they look or sound: System Settings › Notifications › Agent Office.</p>
+    <p class="muted">To change how they look or sound: System Settings › Notifications › Burrow &amp; Co.</p>
     <button class="btn small" data-action="test-alert">Send a Test Alert</button>`;
-  if (!('Notification' in window)) return '<p class="muted">This browser can\'t show alerts. Use the Agent Office app for Mac notifications.</p>';
+  if (!('Notification' in window)) return '<p class="muted">This browser can\'t show alerts. Use the Burrow &amp; Co. Mac app for notifications.</p>';
   if (Notification.permission === 'granted') return '<p>Alerts are on. This browser pops one up when a critter asks "May I?" and the office tab isn\'t in front.</p>';
   if (Notification.permission === 'denied') return '<p class="muted">This browser blocked alerts. Allow notifications for this page in the browser\'s site settings, then reload.</p>';
   return `<p>Get a pop-up when a critter asks "May I?" and the office tab isn't in front.</p>
@@ -2034,7 +2034,7 @@ function firstPerCritter(list) {
 function renderTray() {
   const list = firstPerCritter([...perms.values()].filter(r => !(drawer.id === r.projectId && drawer.tab === 'chat')));
   $('#tray').innerHTML = list.map(permHTML).join('');
-  document.title = perms.size ? `(${perms.size}) May I? · Agent Office` : 'Agent Office';
+  document.title = perms.size ? `(${perms.size}) May I? · Burrow & Co.` : 'Burrow & Co.';
   window.webkit?.messageHandlers?.office?.postMessage({ kind: 'badge', count: perms.size });
 }
 
@@ -2141,7 +2141,7 @@ function practiceHTML(p) {
 // The café's first message, ready to send: six treats named after critters in this office.
 function practicePrompt(p) {
   const w = workerOf(p), names = [w, ...office.workers.filter(x => x.id !== w.id)].slice(0, 6).map(x => x.name);
-  return `Hi ${w.name}! This is a practice project, so let's keep it small and fun. Please make one file called index.html: a cosy one-page menu for the Agent Office Café. ` +
+  return `Hi ${w.name}! This is a practice project, so let's keep it small and fun. Please make one file called index.html: a cosy one-page menu for the Burrow & Co. Café. ` +
     `List six snacks and drinks, each named after one of these critters: ${names.join(', ')} (for example "${names[0]}'s Honey Toast"). ` +
     `Give each one a one-line description and a price in acorns, and use warm, cosy colours. Just that one file, please: no other files and nothing to install.`;
 }
@@ -3395,7 +3395,7 @@ function exportData() {
   const blob = new Blob([JSON.stringify(office, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `agent-office-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `burrow-and-co-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

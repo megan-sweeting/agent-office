@@ -1,8 +1,8 @@
 #!/bin/bash
-# Builds ~/Applications/Agent Office.app from main.swift and assets/app-icon.png.
+# Builds ~/Applications/Burrow & Co.app from main.swift and assets/app-icon.png.
 set -e
 cd "$(dirname "$0")"
-APP="$HOME/Applications/Agent Office.app"
+APP="$HOME/Applications/Burrow & Co.app"
 ICON="../assets/app-icon.png"
 SET="$(mktemp -d)/AppIcon.iconset"
 
@@ -13,7 +13,7 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$SET" -o "$APP/Contents/Resources/AppIcon.icns"
 
-swiftc -O main.swift -o "$APP/Contents/MacOS/Agent Office" -target arm64-apple-macos13.0 \
+swiftc -O main.swift -o "$APP/Contents/MacOS/Burrow & Co" -target arm64-apple-macos13.0 \
   -framework Cocoa -framework WebKit -framework UserNotifications
 rm -f "$APP/Contents/MacOS/launch"
 
@@ -22,13 +22,13 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Agent Office</string>
-  <key>CFBundleDisplayName</key><string>Agent Office</string>
+  <key>CFBundleName</key><string>Burrow &amp; Co.</string>
+  <key>CFBundleDisplayName</key><string>Burrow &amp; Co.</string>
   <key>CFBundleIdentifier</key><string>local.agent-office</string>
   <key>CFBundleVersion</key><string>2.0</string>
   <key>CFBundleShortVersionString</key><string>2.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>Agent Office</string>
+  <key>CFBundleExecutable</key><string>Burrow &amp; Co</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -49,3 +49,7 @@ IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep -m1 "Appl
 codesign --force --deep -s "${IDENTITY:--}" "$APP"
 touch "$APP"
 echo "Built $APP"
+# Before the rename the app was called Agent Office. It has the same bundle ID, so keep just one.
+OLD="$HOME/Applications/Agent Office.app"
+[ -d "$OLD" ] && echo "You can now delete the old app: $OLD"
+exit 0

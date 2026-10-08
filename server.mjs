@@ -1,4 +1,4 @@
-// Agent Office server: stores the office in office.json, runs one Claude Code
+// Burrow & Co. server: stores the office in office.json, runs one Claude Code
 // worker per cubicle through the Agent SDK, and streams everything to the page.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -505,7 +505,7 @@ async function addDeskMate(home, w) {
     let cur = ''; try { cur = fs.readFileSync(ex, 'utf8'); } catch {}
     if (!cur.split('\n').includes('.claude/worktrees/')) {
       fs.mkdirSync(path.dirname(ex), { recursive: true });
-      fs.appendFileSync(ex, `${cur && !cur.endsWith('\n') ? '\n' : ''}# Agent Office desk mates\n.claude/worktrees/\n`);
+      fs.appendFileSync(ex, `${cur && !cur.endsWith('\n') ? '\n' : ''}# Burrow & Co. desk mates\n.claude/worktrees/\n`);
     }
   }
   const made = await git(repo, ['worktree', 'add', '-b', branch, worktree, 'HEAD']);
@@ -604,7 +604,7 @@ function officeTools(projectId) {
   return createSdkMcpServer({
     name: 'office',
     tools: [
-      tool('update_cubicle', 'Update your cubicle on the boss\'s Agent Office board: status, project stage, today\'s task, or where you left off.', {
+      tool('update_cubicle', 'Update your cubicle on the boss\'s Burrow & Co. board: status, project stage, today\'s task, or where you left off.', {
         status: z.enum(['working', 'needs', 'blocked']).optional().describe('working, needs (you need the boss or are waiting on their answer), or blocked (stuck). Only the boss ends your day.'),
         stage: z.enum(STAGES).optional().describe('Where the whole project is'),
         task: z.string().optional().describe('One short plain-English sentence a non-developer understands: what you are doing today. No file names, code names, commands or arrows.'),
@@ -716,7 +716,7 @@ function deskMatePrompt(p) {
 
 function officePrompt(p) {
   const w = findWorker(p.workerId);
-  return `\n\n# Agent Office\nYou are ${w?.name || 'the worker'}${w ? ` (a little ${w.animal})` : ''}, assigned to the "${p.name}" project in the boss's Agent Office dashboard. ` +
+  return `\n\n# Burrow & Co.\nYou are ${w?.name || 'the worker'}${w ? ` (a little ${w.animal})` : ''}, assigned to the "${p.name}" project in the boss's Burrow & Co. dashboard (the office app). ` +
     (ownerName() ? `The boss's name is ${ownerName()}. ` : '') +
     `Each chat is one "shift" at your cubicle; this is Shift ${p.day}.\n` + deskMatePrompt(p) +
     `- Folders under .claude/worktrees belong to desk mates (other critters' copies of this project): leave them alone.\n` +
@@ -734,7 +734,7 @@ function officePrompt(p) {
     `- If a task needs something only the Claude desktop app has (the design canvas / Claude Design, the browser pane, the iOS Simulator view), ` +
     `do not say you can't: call mcp__office__open_in_desktop_app, and the chat moves there with you.\n` +
     `- The boss approves risky actions in a pop-up, so just attempt the action; do not ask for permission in chat first.\n` +
-    `- Guardrails: you never delete core Mac system files. Anything touching Mac system files or settings, passwords or keys, the Agent Office itself, ` +
+    `- Guardrails: you never delete core Mac system files. Anything touching Mac system files or settings, passwords or keys, Burrow & Co. itself, ` +
     `admin (sudo) commands, files outside this project, deleting folders, pushing code, or installing software goes to the boss for approval first.\n` +
     `- Anything you make for the boss to look at (previews, exports, screenshots, files to upload) goes in a folder named "${forFolder()}" ` +
     `inside this project's folder (create it if needed). Never put files on the Desktop or anywhere outside the project folder.` +
@@ -2015,7 +2015,7 @@ server.on('error', e => {
   throw e;
 });
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`\n  🏢 Agent Office is open: http://localhost:${PORT}\n`);
+  console.log(`\n  🏢 Burrow & Co. is open: http://localhost:${PORT}\n`);
   if (!CLAUDE_BIN) console.log('  ⚠ Could not find the claude command on your PATH. Chats will not work until it is installed.\n');
   console.log('  Leave this window open while you use the office. Press Ctrl+C to close it.\n');
 });

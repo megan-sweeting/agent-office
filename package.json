@@ -1,5 +1,5 @@
 {
-  "name": "agent-office",
+  "name": "burrow-and-co",
   "version": "1.0.0",
   "description": "A visual office for your Claude Code workers",
   "main": "server.mjs",

@@ -1,6 +1,6 @@
-# Agent Office
+# Burrow & Co.
 
-A visual office for your Claude Code workers. One cubicle per project, one critter per cubicle, one chat per "day".
+*(Formerly Agent Office.)* A visual office for your Claude Code workers. One cubicle per project, one critter per cubicle, one chat per "day".
 
 ## What you need
 
@@ -54,9 +54,9 @@ cd app
 ./build.sh
 ```
 
-It installs to `~/Applications/Agent Office.app` and remembers which folder the office lives in. To use your own bundle ID, run `BUNDLE_ID=com.yourname.agent-office ./build.sh`. It needs Xcode or the Xcode Command Line Tools (`xcode-select --install`), and it always opens http://localhost:4545, so keep the default port if you use it.
+It installs to `~/Applications/Burrow & Co.app` and remembers which folder the office lives in. To use your own bundle ID, run `BUNDLE_ID=com.yourname.agent-office ./build.sh`. It needs Xcode or the Xcode Command Line Tools (`xcode-select --install`), and it always opens http://localhost:4545, so keep the default port if you use it.
 
-Its menu bar has **Check for Updates…**, **Settings…** (⌘,) and **Restart the Office…** under Agent Office; page shortcuts (⌘1 The Floor, ⌘2 Boss's Burrow, ⌘3 The Meadow, ⌘K Search) and text size (⌘+, ⌘−, ⌘0) under View; and help, the office tour, problem reports and the Ko-fi page under Help.
+Its menu bar has **Check for Updates…**, **Settings…** (⌘,) and **Restart the Office…** under Burrow & Co.; page shortcuts (⌘1 The Floor, ⌘2 Boss's Burrow, ⌘3 The Meadow, ⌘K Search) and text size (⌘+, ⌘−, ⌘0) under View; and help, the office tour, problem reports and the Ko-fi page under Help.
 
 ## How it works
 
@@ -79,9 +79,9 @@ Everything the office knows is saved in `office.json` next to this file. It hold
 - **Approvals matter.** Critters can edit files and run commands in their project folders. Read the approval pop-ups before you click Allow.
 - **When Claude's login runs out**, critters say "Not logged in". A banner in their chat has a **Sign In to Claude** button: it opens Terminal running `claude /login` (the first time, macOS asks whether the office may control Terminal). Finish there, press **I'm Signed In**, then **Try Again**. If the office still can't see the sign-in, **Restart the Office** in the Mac app usually fixes it. Typing `/login` in a chat starts the same steps.
 
-## Support Agent Office
+## Support Burrow & Co.
 
-Agent Office is free. If it makes your days a little nicer and you'd like to say thanks, you can leave a tip here: https://ko-fi.com/megansweeting
+Burrow & Co. is free. If it makes your days a little nicer and you'd like to say thanks, you can leave a tip here: https://ko-fi.com/megansweeting
 
 ## License
 

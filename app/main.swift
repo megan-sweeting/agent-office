@@ -1,4 +1,4 @@
-// Agent Office: a small native window around the office page (http://localhost:4545).
+// Burrow & Co.: a small native window around the office page (http://localhost:4545).
 // Starts the office server if it isn't running, shows approval counts on the Dock icon,
 // and turns "May I?" requests into Mac notifications while the window is in the background.
 import Cocoa
@@ -9,7 +9,7 @@ import UserNotifications
 let env = ProcessInfo.processInfo.environment
 let officePort = Int(env["OFFICE_PORT"] ?? "") ?? 4545
 let officeURL = URL(string: "http://localhost:\(officePort)")!
-let logPath = env["AGENT_OFFICE_LOG"] ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Agent Office.log").path
+let logPath = env["AGENT_OFFICE_LOG"] ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Burrow & Co.log").path
 func appLog(_ line: String) {
     let url = URL(fileURLWithPath: logPath)
     let text = "[app \(Date())] \(line)\n"
@@ -67,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 880),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
-        window.title = "Agent Office"
+        window.title = "Burrow & Co."
         window.backgroundColor = NSColor(red: 0.957, green: 0.933, blue: 0.863, alpha: 1)
         window.minSize = NSSize(width: 420, height: 500)
         window.contentView = web
@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         showMessage("Opening the office…")
         ensureServer { ok in
             if ok { self.web.load(URLRequest(url: officeURL)) }
-            else { self.showMessage("The office didn't start. Check ~/Library/Logs/Agent Office.log, then press Cmd+R.") }
+            else { self.showMessage("The office didn't start. Check ~/Library/Logs/Burrow & Co.log, then press Cmd+R.") }
         }
     }
 
@@ -130,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             DispatchQueue.main.async {
                 self.ensureServer { ok in
                     if ok { self.web.load(URLRequest(url: officeURL)) }
-                    else { self.showMessage("The office didn't start again. Check ~/Library/Logs/Agent Office.log, then press Cmd+R.") }
+                    else { self.showMessage("The office didn't start again. Check ~/Library/Logs/Burrow & Co.log, then press Cmd+R.") }
                 }
             }
         }
@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [reqId])
         } else if kind == "notify", !NSApp.isActive {
             let content = UNMutableNotificationContent()
-            content.title = body["title"] as? String ?? "Agent Office"
+            content.title = body["title"] as? String ?? "Burrow & Co."
             content.body = body["body"] as? String ?? ""
             content.sound = .default
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
@@ -308,19 +308,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         func mine(_ t: String, _ a: Selector, _ k: String = "", _ mods: NSEvent.ModifierFlags = .command, tag: Int = 0) -> NSMenuItem {
             let i = mi(t, a, k, mods); i.target = self; i.tag = tag; return i
         }
-        sub("Agent Office", [
-            mine("About Agent Office", #selector(showAbout)),
+        sub("Burrow & Co.", [
+            mine("About Burrow & Co.", #selector(showAbout)),
             mine("Check for Updates…", #selector(checkForUpdates)),
             .separator(),
             mine("Settings…", #selector(openSettings), ","),
             mine("Send a Test Notification", #selector(testNotification)),
             mine("Restart the Office…", #selector(restartOffice)),
             .separator(),
-            mi("Hide Agent Office", #selector(NSApplication.hide(_:)), "h"),
+            mi("Hide Burrow & Co.", #selector(NSApplication.hide(_:)), "h"),
             mi("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             mi("Show All", #selector(NSApplication.unhideAllApplications(_:)), ""),
             .separator(),
-            mi("Quit Agent Office", #selector(NSApplication.terminate(_:)), "q"),
+            mi("Quit Burrow & Co.", #selector(NSApplication.terminate(_:)), "q"),
         ])
         sub("Edit", [
             mi("Undo", Selector(("undo:")), "z"),
@@ -357,11 +357,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             mi("Bring All to Front", #selector(NSApplication.arrangeInFront(_:)), ""),
         ])
         sub("Help", [
-            mine("Agent Office Help", #selector(openLink(_:)), "?", tag: 1),
+            mine("Burrow & Co. Help", #selector(openLink(_:)), "?", tag: 1),
             mine("Replay the Office Tour", #selector(replayTour)),
             .separator(),
             mine("Report a Problem…", #selector(openLink(_:)), tag: 2),
-            mine("Support Agent Office on Ko-fi", #selector(openLink(_:)), tag: 3),
+            mine("Support Burrow & Co. on Ko-fi", #selector(openLink(_:)), tag: 3),
         ])
         NSApp.mainMenu = main
         NSApp.windowsMenu = main.items[3].submenu
@@ -405,7 +405,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     @objc func testNotification() {
         let content = UNMutableNotificationContent()
         content.title = "Moss · May I run a command?"
-        content.body = "This is a test from Agent Office. The buttons won't do anything."
+        content.body = "This is a test from Burrow & Co. The buttons won't do anything."
         content.sound = .default
         content.categoryIdentifier = "MAY_I"
         content.userInfo = ["reqId": "test", "projectId": ""]
@@ -417,7 +417,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
                 DispatchQueue.main.async {
                     let a = NSAlert()
                     a.messageText = "macOS didn't show the notification"
-                    a.informativeText = err.localizedDescription + "\n\nCheck System Settings → Notifications → Agent Office."
+                    a.informativeText = err.localizedDescription + "\n\nCheck System Settings → Notifications → Burrow & Co."
                     a.runModal()
                 }
             }
