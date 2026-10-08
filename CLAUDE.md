@@ -1,6 +1,17 @@
 # Burrow & Co.
 
-## Making critter pictures in Gemini
+## Making critter pictures
+
+Use `app/gemini.py`, which calls the Gemini API directly. The Gemini website fails from automated Chrome tabs ("Something went wrong (1155)").
+
+- `python3 app/gemini.py <mood> [critter ...]`: no critters means all 16 hireable ones. Moods and their prompts are in the `MOODS` dict at the top; per-critter rules (Clover's three-legged pose, the red panda's empty paws) are in `EXTRA`.
+- Existing pictures are skipped; add `--redo` to replace them. More than 2 pictures stops with the count and cost until you add `--yes`.
+- The key comes from `GEMINI_API_KEY` or `~/.config/agent-office/gemini-key`, and is only sent in the `x-goog-api-key` header. Never print, log or commit it.
+- Raw results and the contact sheet (original | new, all 16 rows) go to `.gemini-raw/` (git-ignored). Check `.gemini-raw/sheet-<mood>.png` for new objects, extra legs, eye whites and floating props, then `--redo` the bad ones.
+- Run it outside the sandbox: inside it, the network filter cuts off the roughly 2 MB reply (`IncompleteRead`), and that failed call may still be billed.
+- The model is the `MODEL` constant (Nano Banana 2 Lite, about $0.034 a picture). Before changing it, list the models with GET `/v1beta/models` instead of guessing.
+
+## Making critter pictures on the Gemini website (old way)
 
 - The first click on "Upload & tools" after Gemini loads often doesn't open the menu. Click again and take a screenshot to confirm "Upload files" shows. Then use the Chrome file_upload tool on the first file input, with the real picture path in `assets/critters`.
 - Wait about 4 seconds after uploading before typing the prompt, or Enter won't send.
