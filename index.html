@@ -929,13 +929,24 @@ function quietHTML() {
 }
 const critterImg = (w, cls = 'critter', alt = true, mood = '') => w?.critter
   ? `<img class="${cls}" src="${critterSrc(w, mood)}" alt="${alt ? `${esc(w.name)} the ${esc(animalOf(w))}` : ''}">` : '';
-// The mood picture when one exists in assets/critters/moods, else the normal one.
-const critterSrc = (w, mood) => moods.has(`${w.critter}-${mood}`)
-  ? `/assets/critters/moods/${esc(w.critter)}-${mood}.png` : `/assets/critters/${esc(w.critter)}.png`;
-// How a critter at its desk looks: asking for you, or napping. A May I? wins (the critter is still mid-turn
-// while it waits); otherwise busy always looks normal.
-const moodOf = (p, asking) => asking ? 'needs' : busy.has(p.id) ? ''
-  : ['needs', 'blocked'].includes(p.status) ? 'needs'
+// The mood picture when one exists in assets/critters/moods, else its stand-in (stuck looks worried
+// until a stuck picture exists), else the normal one.
+const MOOD_STANDIN = { stuck: 'needs' };
+const critterSrc = (w, mood) => {
+  const m = moods.has(`${w.critter}-${mood}`) ? mood : moods.has(`${w.critter}-${MOOD_STANDIN[mood]}`) ? MOOD_STANDIN[mood] : '';
+  return m ? `/assets/critters/moods/${esc(w.critter)}-${m}.png` : `/assets/critters/${esc(w.critter)}.png`;
+};
+// Tools that mean a critter is reading or looking around rather than making changes.
+const LOOKING = /^(Read|Glob|Grep|LS|WebSearch|WebFetch|ToolSearch|mcp__office__get_boss_todos|mcp__claude-in-chrome__(read_page|get_page_text|find|tabs_context_mcp))$/;
+const lastTool = new Map(); // project id -> name of the last tool it used this turn
+// How a critter at its desk looks. A May I? wins (the critter is still mid-turn while it waits); busy is
+// curious while reading and focused otherwise; a finished turn looks proud until you open the chat.
+const moodOf = (p, asking) => asking ? 'needs'
+  : busy.has(p.id) ? (LOOKING.test(lastTool.get(p.id) || '') ? 'curious' : 'focused')
+  : p.status === 'blocked' ? 'stuck'
+  : p.status === 'needs' ? 'needs'
+  : p.unread && ['break', 'crew', 'out'].includes(p.status) ? 'proud'
+  : p.status === 'break' ? 'relaxed'
   : ['out', 'home'].includes(p.status) ? 'sleepy' : '';
 const titleCase = t => String(t || '').replace(/\b\w/g, c => c.toUpperCase());
 const animalOf = w => titleCase(w.animal);
@@ -2822,6 +2833,12 @@ function connect() {
       office.whiteboard = ev.text;
       if (document.activeElement?.id !== 'wb') render();
     } else if (ev.type === 'chat') {
+      const tool = ev.items.findLast(x => x.kind === 'tool');
+      if (tool) {
+        const p = find(ev.id), before = p && moodOf(p, askingCount(p.id));
+        lastTool.set(ev.id, tool.name);
+        if (p && moodOf(p, askingCount(p.id)) !== before) render();
+      }
       if (chat && chat.id === ev.id) {
         if (chat.loading) chat.buffer.push(...ev.items); else chat.items.push(...ev.items);
         renderChatLog();
@@ -2829,6 +2846,7 @@ function connect() {
     } else if (ev.type === 'busy') {
       const was = busy.has(ev.id);
       ev.busy ? busy.add(ev.id) : busy.delete(ev.id);
+      if (!was) lastTool.delete(ev.id);  // a fresh turn starts focused
       if (was && !ev.busy) notify(ev.id, 'has something for you');
       const waited = !ev.busy && chromeWait.delete(ev.id);  // the step finished, so the Chrome change is in
       render();

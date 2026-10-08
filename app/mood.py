@@ -8,6 +8,11 @@ Cuts away the white background, then scales the critter to match its
 normal picture in assets/critters (same width and feet line), so it does
 not grow or shrink when its mood changes. Saves assets/critters/moods/<critter>-<mood>.png.
 
+Moods the floor uses: needs (asking you), stuck (blocked; shows needs until made),
+focused (working), curious (reading or looking around), proud (finished, until you
+open the chat), relaxed (on a break), sleepy (napping or gone home). A critter with
+no picture for a mood shows its normal face.
+
 Gemini prompt tip: upload the critter's normal picture and add "keep the eyes
 exactly like the original, solid dark round eyes with only small white shine
 dots. No whites of the eyes showing. Show the worry only with the eyebrows and
