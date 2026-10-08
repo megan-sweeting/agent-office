@@ -41,6 +41,7 @@
     --del-bg: #F7DAD3;  --del: #8E3226;
     --off-bg: #E9E5D8;  --off: #545A4C;
     --sleep-bg: #E6E4F4; --sleep: #4B4880;
+    --dusk-bg: #DCE9F5; --dusk: #3E6488;
     --trip-bg: #DCEFF1; --trip: #22606A;
     --team-bg: #E3E9F7; --team: #34508C;
     --nap-bg: var(--mustard-bg); --nap: var(--mustard-ink);
@@ -81,6 +82,7 @@
       --del-bg: #43231E;  --del: #F2A497;
       --off-bg: #333A2D;  --off: #C0C6B1;
       --sleep-bg: #2F2E47; --sleep: #C6C3EE;
+      --dusk-bg: #1E3142; --dusk: #A8CBE8;
       --trip-bg: #1D3739; --trip: #9ED8DE;
       --team-bg: #25304A; --team: #B4C6F0;
       --code: #212A1C;
@@ -253,24 +255,24 @@
   /* Gone home: a garden fence with a lit cottage, then the evening floor */
   .after-hours {
     margin-top: 34px; padding: 0 18px 22px; border-radius: 30px;
-    background: linear-gradient(180deg, var(--sleep-bg), color-mix(in srgb, var(--sleep-bg) 35%, var(--paper)) 260px, var(--paper));
+    background: linear-gradient(180deg, var(--dusk-bg), color-mix(in srgb, var(--dusk-bg) 35%, var(--paper)) 260px, var(--paper));
   }
   .home-time { display: flex; align-items: center; gap: 14px; padding: 18px 0 20px; }
   .fence {
     flex: 1; height: 24px; min-width: 20px; opacity: .8;
     background:
-      linear-gradient(var(--sleep), var(--sleep)) 0 8px / 100% 3px no-repeat,
-      linear-gradient(var(--sleep), var(--sleep)) 0 16px / 100% 3px no-repeat,
-      repeating-linear-gradient(90deg, var(--sleep) 0 5px, transparent 5px 22px) 0 2px / 100% 22px no-repeat;
+      linear-gradient(var(--dusk), var(--dusk)) 0 8px / 100% 3px no-repeat,
+      linear-gradient(var(--dusk), var(--dusk)) 0 16px / 100% 3px no-repeat,
+      repeating-linear-gradient(90deg, var(--dusk) 0 5px, transparent 5px 22px) 0 2px / 100% 22px no-repeat;
     -webkit-mask: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
             mask: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
   }
-  .home-sign { display: flex; align-items: center; gap: 12px; max-width: 520px; color: var(--sleep); }
+  .home-sign { display: flex; align-items: center; gap: 12px; max-width: 520px; color: var(--dusk); }
   .home-sign svg { flex: none; }
   .home-sign b { display: block; font-family: var(--display); font-size: 21px; line-height: 1.15; }
   .home-sign small { display: block; font-size: 14px; font-weight: 700; color: var(--muted); }
-  .after-hours .cube { border-color: color-mix(in srgb, var(--wall) 55%, var(--sleep-bg)); }
-  .after-hours .cube .wall { background: color-mix(in srgb, var(--wall) 55%, var(--sleep-bg)); }
+  .after-hours .cube { border-color: color-mix(in srgb, var(--wall) 55%, var(--dusk-bg)); }
+  .after-hours .cube .wall { background: color-mix(in srgb, var(--wall) 55%, var(--dusk-bg)); }
   @media (max-width: 640px) { .after-hours { padding: 0 10px 16px; } .fence { min-width: 12px; } .home-sign small { font-size: 13px; } }
 
   .shelf { margin-top: 30px; }
@@ -1319,8 +1321,8 @@ function afterHoursHTML(ps) {
       <div class="home-sign">
         <svg viewBox="0 0 64 52" width="58" height="47" fill="none" aria-hidden="true">
           <path d="M50 4a8 8 0 1 0 8 10 6.5 6.5 0 1 1-8-10z" fill="var(--mustard)"></path>
-          <circle cx="8" cy="8" r="1.6" fill="var(--sleep)"></circle><circle cx="18" cy="3" r="1.2" fill="var(--sleep)"></circle><circle cx="40" cy="6" r="1.2" fill="var(--sleep)"></circle>
-          <path d="M14 26 32 12l18 14v22H14z" fill="var(--card)" stroke="var(--sleep)" stroke-width="2.5" stroke-linejoin="round"></path>
+          <circle cx="8" cy="8" r="1.6" fill="var(--dusk)"></circle><circle cx="18" cy="3" r="1.2" fill="var(--dusk)"></circle><circle cx="40" cy="6" r="1.2" fill="var(--dusk)"></circle>
+          <path d="M14 26 32 12l18 14v22H14z" fill="var(--card)" stroke="var(--dusk)" stroke-width="2.5" stroke-linejoin="round"></path>
           <path d="M10 28 32 10l22 18" stroke="var(--berry)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
           <rect x="20" y="30" width="9" height="8" rx="1.5" fill="var(--mustard)"></rect>
           <path d="M36 48V36a4 4 0 0 1 8 0v12" fill="var(--moss)"></path>
