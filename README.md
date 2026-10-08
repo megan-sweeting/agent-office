@@ -56,6 +56,8 @@ cd app
 
 It installs to `~/Applications/Agent Office.app` and remembers which folder the office lives in. To use your own bundle ID, run `BUNDLE_ID=com.yourname.agent-office ./build.sh`. It needs Xcode or the Xcode Command Line Tools (`xcode-select --install`), and it always opens http://localhost:4545, so keep the default port if you use it.
 
+Its menu bar has **Check for Updates…**, **Settings…** (⌘,) and **Restart the Office…** under Agent Office; page shortcuts (⌘1 The Floor, ⌘2 Boss's Burrow, ⌘3 The Meadow, ⌘K Search) and text size (⌘+, ⌘−, ⌘0) under View; and help, the office tour, problem reports and the Ko-fi page under Help.
+
 ## How it works
 
 - **Cubicle** = a project folder. Its critter is Claude Code running in that folder with your normal login and settings.

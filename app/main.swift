@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         web.uiDelegate = self
         web.navigationDelegate = self
         web.setValue(false, forKey: "drawsBackground")
+        let zoom = UserDefaults.standard.double(forKey: "pageZoom")
+        if zoom > 0 { web.pageZoom = CGFloat(zoom) }
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 880),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -302,13 +304,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         func mi(_ t: String, _ a: Selector?, _ k: String, _ mods: NSEvent.ModifierFlags = .command) -> NSMenuItem {
             let i = NSMenuItem(title: t, action: a, keyEquivalent: k); i.keyEquivalentModifierMask = mods; return i
         }
-        let settings = mi("Settings…", #selector(openSettings), ","); settings.target = self
-        let test = mi("Send a Test Notification", #selector(testNotification), ""); test.target = self
+        // Items handled here (not by macOS) point at this delegate.
+        func mine(_ t: String, _ a: Selector, _ k: String = "", _ mods: NSEvent.ModifierFlags = .command, tag: Int = 0) -> NSMenuItem {
+            let i = mi(t, a, k, mods); i.target = self; i.tag = tag; return i
+        }
         sub("Agent Office", [
-            settings,
-            test,
+            mine("About Agent Office", #selector(showAbout)),
+            mine("Check for Updates…", #selector(checkForUpdates)),
+            .separator(),
+            mine("Settings…", #selector(openSettings), ","),
+            mine("Send a Test Notification", #selector(testNotification)),
+            mine("Restart the Office…", #selector(restartOffice)),
             .separator(),
             mi("Hide Agent Office", #selector(NSApplication.hide(_:)), "h"),
+            mi("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
+            mi("Show All", #selector(NSApplication.unhideAllApplications(_:)), ""),
             .separator(),
             mi("Quit Agent Office", #selector(NSApplication.terminate(_:)), "q"),
         ])
@@ -321,14 +331,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             mi("Paste", #selector(NSText.paste(_:)), "v"),
             mi("Select All", #selector(NSText.selectAll(_:)), "a"),
         ])
-        let reload = mi("Reload", #selector(reloadPage), "r"); reload.target = self
-        sub("View", [reload])
+        // Cmd+= zooms in too, without typing Shift for the +.
+        let zoomInEquals = mine("Zoom In", #selector(zoomIn), "=")
+        zoomInEquals.isHidden = true; zoomInEquals.allowsKeyEquivalentWhenHidden = true
+        sub("View", [
+            mine("The Floor", #selector(showPage(_:)), "1", tag: 1),
+            mine("Boss's Burrow", #selector(showPage(_:)), "2", tag: 2),
+            mine("The Meadow", #selector(showPage(_:)), "3", tag: 3),
+            mine("Search", #selector(showPage(_:)), "k", tag: 4),
+            .separator(),
+            mine("Reload", #selector(reloadPage), "r"),
+            .separator(),
+            mine("Actual Size", #selector(zoomReset), "0"),
+            mine("Zoom In", #selector(zoomIn), "+"),
+            zoomInEquals,
+            mine("Zoom Out", #selector(zoomOut), "-"),
+            .separator(),
+            mi("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]),
+        ])
         sub("Window", [
             mi("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
+            mi("Zoom", #selector(NSWindow.performZoom(_:)), ""),
             mi("Close", #selector(NSWindow.performClose(_:)), "w"),
+            .separator(),
+            mi("Bring All to Front", #selector(NSApplication.arrangeInFront(_:)), ""),
+        ])
+        sub("Help", [
+            mine("Agent Office Help", #selector(openLink(_:)), "?", tag: 1),
+            mine("Replay the Office Tour", #selector(replayTour)),
+            .separator(),
+            mine("Report a Problem…", #selector(openLink(_:)), tag: 2),
+            mine("Support Agent Office on Ko-fi", #selector(openLink(_:)), tag: 3),
         ])
         NSApp.mainMenu = main
+        NSApp.windowsMenu = main.items[3].submenu
+        NSApp.helpMenu = main.items[4].submenu
     }
+
+    // Asks the page to do something from the menu bar (see appMenu in index.html).
+    func page(_ action: String) {
+        window.makeKeyAndOrderFront(nil)
+        web.evaluateJavaScript("appMenu('\(action)')", completionHandler: nil)
+    }
+
+    @objc func showAbout() {
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .credits: NSAttributedString(string: "A cosy office where Claude critters work on your projects.\nMade by Megan Sweeting. Free and open source (MIT).",
+                                         attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor]),
+        ])
+    }
+
+    @objc func checkForUpdates() { page("check-updates") }
+    @objc func restartOffice() { page("restart") }
+    @objc func replayTour() { page("tour") }
+    @objc func showPage(_ sender: NSMenuItem) { page(["", "floor", "boss", "meadow", "search"][sender.tag]) }
+
+    @objc func openLink(_ sender: NSMenuItem) {
+        let links = ["", "https://github.com/megan-sweeting/agent-office#readme",
+                     "https://github.com/megan-sweeting/agent-office/issues/new",
+                     "https://ko-fi.com/megansweeting"]
+        if let url = URL(string: links[sender.tag]) { NSWorkspace.shared.open(url) }
+    }
+
+    // Text size for the whole office, remembered between launches.
+    func setZoom(_ z: CGFloat) {
+        web.pageZoom = min(2, max(0.6, z))
+        UserDefaults.standard.set(Double(web.pageZoom), forKey: "pageZoom")
+    }
+    @objc func zoomIn() { setZoom(web.pageZoom + 0.1) }
+    @objc func zoomOut() { setZoom(web.pageZoom - 0.1) }
+    @objc func zoomReset() { setZoom(1) }
 
     @objc func testNotification() {
         let content = UNMutableNotificationContent()

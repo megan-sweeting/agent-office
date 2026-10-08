@@ -1548,6 +1548,24 @@ async function checkSignIn({ afterRestart = false } = {}) {
   } else signIn.state = afterRestart ? 'still' : 'stale';
   renderSignIn();
 }
+// The Mac app's menu bar calls this (Check for Updates, Restart the Office, page shortcuts, the tour).
+function appMenu(action) {
+  if (tour && action !== 'tour') endTour(false);
+  if (action === 'restart') return restartOffice();
+  if (action === 'tour') { if (drawer.id) closeDrawer(); go('floor'); return startTour(); }
+  if (drawer.id) closeDrawer();
+  if (action === 'check-updates') {
+    go('settings');
+    $('#verPanel')?.scrollIntoView({ block: 'center' });
+    if (verState?.busy) return;
+    // A copy that can't update (no git, no GitHub) just shows the panel, which says why.
+    const known = ver && !ver.loading ? Promise.resolve()
+      : api('GET', '/api/version').then(r => { ver = r; }).catch(() => { ver = { failed: true }; });
+    return known.then(() => { renderVersion(); if (ver.git && ver.reason !== 'no-remote') versionAction('check'); });
+  }
+  go(action);
+  if (action === 'search') setTimeout(() => $('#searchQ')?.focus(), 0);
+}
 function restartOffice() {
   const n = busy.size;
   if (n && !confirm(`${n} critter${n === 1 ? ' is' : 's are'} still working.\n\nRestarting the office stops ${n === 1 ? 'them' : 'everyone'}. Restart anyway?`)) return;
