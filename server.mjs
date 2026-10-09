@@ -1584,7 +1584,9 @@ const server = http.createServer(async (req, res) => {
       }
       restartPending = true;
       setTimeout(restartWhenIdle, 200);
-      return send(res, 200, { updated: count, npm, appChanged: files.some(f => f.startsWith('app/')),
+      // Only the files build.sh turns into the Mac app; the picture tools in app/ don't need a rebuild.
+      const appChanged = files.some(f => ['app/main.swift', 'app/build.sh', 'assets/app-icon.png'].includes(f));
+      return send(res, 200, { updated: count, npm, appChanged,
         waiting: [...workers.values()].filter(w => w.active).length });
     }
     // Sign in to Claude: opens Terminal on this Mac running claude /login (never from a phone).
