@@ -2157,7 +2157,7 @@ function drawerHead(p) {
   const mate = !!p.deskOf;
   return `
     <div class="d-top">
-      ${critterImg(w, '')}
+      ${critterImg(w, '', true, moodOf(p, askingCount(p.id)))}
       <div class="names"><b>${esc(p.name)}</b>
         <span>${esc(w.name)} the ${esc(animalOf(w))}${mate ? ` · Desk mate${p.shared ? ' (shared folder)' : ''}` : ''} · Shift ${p.day} · ${STAGES[p.stage]}${p.folder ? ` · <span class="path" title="${esc(p.folder)}">${esc(mate && p.branch ? p.branch : folderName(p.folder))}</span>` : ''}</span></div>
       ${p.closed ? '<span class="pill" style="--c:var(--off);--c-bg:var(--off-bg)">Closed</span>'
@@ -2724,8 +2724,14 @@ function render() {
   $('#conn').textContent = connected ? '' : 'Reconnecting to the office…';
   $('#today').textContent = todayLine();
   renderTray();
+  refreshDrawerFace();
   if (pendingFocus && !drawer.id) { $(pendingFocus)?.focus(); pendingFocus = null; }
   placeTour();
+}
+// Moods also change mid-turn (reading, a May I?), so swap just the chat header's face without redrawing the drawer.
+function refreshDrawerFace() {
+  const p = drawer.id && find(drawer.id), img = $('#dHead .d-top img');
+  if (p && img) img.src = critterSrc(workerOf(p), moodOf(p, askingCount(p.id)));
 }
 function renderOffline() {
   $('#app').innerHTML = `<div class="offline">
