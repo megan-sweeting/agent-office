@@ -156,7 +156,7 @@ function migrate() {
     w.bio = bio; w.voice = voice; w.style = STYLES[critter] || ''; w.personality ??= 'light';
   }
   for (const p of office.projects) {
-    p.inDesktop ??= false; p.unread ??= false; p.closed ??= false; p.wrapping = false; p.helpers = [];
+    p.inDesktop ??= false; p.unread ??= false; p.closed ??= false; p.wrapping = false; p.helpers = []; p.running = [];
     if (p.status === 'crew') p.status = 'break';
     p.plate ??= PLATES[office.projects.indexOf(p) % PLATES.length];
     if (!p.workerId || !findWorker(p.workerId)) {
@@ -816,6 +816,7 @@ function startWorker(p, { mode } = {}) {
     } finally {
       if (workers.get(p.id) === w) workers.delete(p.id);
       if (find(p.id)?.helpers?.length) setHelpers(find(p.id), w, []);
+      if (find(p.id)?.running?.length) setRunning(find(p.id), []);
       // A wrap-up that never finished: let the boss try again or skip it.
       const cur = find(p.id);
       if (cur?.wrapping) changed(cur, { wrapping: false });
@@ -835,14 +836,27 @@ function setHelpers(p, w, list) {
   changed(p, f);
   if (!list.length) setTimeout(restartWhenIdle, 500);
 }
+// Background shell commands (a preview server, a watcher) are not helpers: the critter
+// is free, so they only show as a quiet "Running" chip and never change the status.
+function setRunning(p, list) {
+  if (JSON.stringify(list) !== JSON.stringify(p.running || [])) changed(p, { running: list });
+}
+// Only sub-agents and workflows are helpers. Older CLIs leave task_type out, so count those too.
+const isHelperTask = t => !t.task_type || t.task_type === 'local_agent' || t.task_type === 'local_workflow';
+const isShellTask = t => t.task_type === 'local_bash';
 function trackHelpers(p, w, m) {
   if (m.type !== 'system') return false;
-  const cur = p.helpers || [];
+  const cur = p.helpers || [], run = p.running || [];
+  const entry = t => ({ id: t.task_id, description: t.description });
   if (m.subtype === 'background_tasks_changed') {
-    setHelpers(p, w, (m.tasks || []).filter(t => !t.ambient).map(t => ({ id: t.task_id, description: t.description })));
-  } else if (m.subtype === 'task_started' && m.is_backgrounded && !m.ambient && !cur.some(h => h.id === m.task_id)) {
-    setHelpers(p, w, [...cur, { id: m.task_id, description: m.description }]);
+    const tasks = (m.tasks || []).filter(t => !t.ambient);
+    setRunning(p, tasks.filter(isShellTask).map(entry));
+    setHelpers(p, w, tasks.filter(isHelperTask).map(entry));
+  } else if (m.subtype === 'task_started' && m.is_backgrounded && !m.ambient) {
+    if (isShellTask(m)) { if (!run.some(r => r.id === m.task_id)) setRunning(p, [...run, entry(m)]); }
+    else if (isHelperTask(m) && !cur.some(h => h.id === m.task_id)) setHelpers(p, w, [...cur, entry(m)]);
   } else if (m.subtype === 'task_notification' || (m.subtype === 'task_updated' && ['completed', 'failed', 'killed'].includes(m.patch?.status))) {
+    if (run.some(r => r.id === m.task_id)) setRunning(p, run.filter(r => r.id !== m.task_id));
     if (cur.some(h => h.id === m.task_id)) setHelpers(p, w, cur.filter(h => h.id !== m.task_id));
   } else return false;
   return true;

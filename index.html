@@ -228,6 +228,7 @@
   .waiting h4 { margin: 0 0 6px; }
   .waiting ul { margin: 6px 0 10px; padding-left: 20px; font-size: 14px; }
   .pill.long-shift { --c: var(--mustard-ink); --c-bg: var(--mustard-bg); cursor: help; }
+  .pill.running { --c: var(--off); --c-bg: var(--off-bg); font-weight: 700; max-width: 220px; overflow: hidden; text-overflow: ellipsis; cursor: help; }
   .who { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .who strong { font-family: var(--display); font-size: 19px; }
   .day { font-size: 13px; color: var(--muted); white-space: nowrap; }
@@ -1361,7 +1362,7 @@ function cubeHTML(p) {
       `<img class="mate-pic ${i ? 'right' : 'left'} ${busy.has(m.id) ? 'busy' : ''}" src="${critterSrc(workerOf(m), moodOf(m, askingCount(m.id)))}" alt="">`).join('')}<span class="say ${sayCls} ${['break', 'out', 'home'].includes(p.status) && !busy.has(p.id) && !asking ? 'thought' : ''}">${esc(say)}</span></div>
     <div class="desk"><span class="desk-name">${esc(w.name)}</span></div>
     <div class="info">
-      <div class="pills"><span class="pill" style="${statusVars(p.status)}">${s.label}</span>${longShift(p)}</div>
+      <div class="pills"><span class="pill" style="${statusVars(p.status)}">${s.label}</span>${longShift(p)}${runningChip(p)}</div>
       <div class="stages">${STAGES.map((st, i) =>
         `<button class="dot ${i < p.stage ? 'on' : i === p.stage ? 'now' : ''}" title="Mark as ${st}" aria-label="Mark as ${st}" data-action="stage" data-id="${p.id}" data-i="${i}"></button>`).join('')}<span>${STAGES[p.stage]}</span></div>
       <p class="task">${p.task.trim() ? esc(p.task) : `<em>${p.folder ? 'No task set for today' : 'No project folder yet'}</em>`}</p>
@@ -1381,6 +1382,14 @@ function longShift(p) {
   const ctx = !p.closed && p.sessionId && usage?.projects.find(x => x.id === p.id)?.context;
   if (!ctx || ctx < LONG_SHIFT) return '';
   return `<span class="pill long-shift" title="This chat is ${fmtTok(ctx)} tokens. Every message re-sends the whole chat, so each one costs more. Start a New Shift at a good stopping point.">Long Shift · ${fmtTok(ctx)}</span>`;
+}
+
+// Something the critter left running in the background, like a preview server. Just a note: the critter is free.
+function runningChip(p) {
+  if (p.closed || !p.running?.length) return '';
+  const all = p.running.map(r => r.description).join(' · ');
+  const label = p.running.length > 1 ? `${p.running.length} things` : p.running[0].description;
+  return `<span class="pill running" title="Running in the background: ${esc(all)}">Running: ${esc(label)}</span>`;
 }
 
 function newDayButton(p) {
@@ -2161,7 +2170,7 @@ function drawerHead(p) {
       <div class="names"><b>${esc(p.name)}</b>
         <span>${esc(w.name)} the ${esc(animalOf(w))}${mate ? ` · Desk mate${p.shared ? ' (shared folder)' : ''}` : ''} · Shift ${p.day} · ${STAGES[p.stage]}${p.folder ? ` · <span class="path" title="${esc(p.folder)}">${esc(mate && p.branch ? p.branch : folderName(p.folder))}</span>` : ''}</span></div>
       ${p.closed ? '<span class="pill" style="--c:var(--off);--c-bg:var(--off-bg)">Closed</span>'
-        : `${longShift(p)}<span class="pill" style="${statusVars(p.status)}">${busy.has(p.id) ? 'Working…' : s.label}</span>`}
+        : `${runningChip(p)}${longShift(p)}<span class="pill" style="${statusVars(p.status)}">${busy.has(p.id) ? 'Working…' : s.label}</span>`}
       <button class="x" data-action="close-drawer" aria-label="Close">✕</button>
     </div>
     <div class="d-actions">
