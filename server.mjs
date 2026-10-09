@@ -618,6 +618,9 @@ function officeTools(projectId) {
         if (args.task !== undefined) f.task = args.task;
         if (args.note !== undefined) f.note = args.note;
         changed(p, f);
+        // A status change is not a reply: without this nudge the model sometimes ends its turn here
+        if (args.status === 'needs' || args.status === 'blocked') return text('Cubicle updated. The boss has NOT seen your answer yet. ' +
+          'Now write your full reply: what you found and the exact question or decision you need. Don\'t mention the board or your status.');
         return text('Cubicle updated.');
       }),
       tool('open_in_desktop_app', 'Move this chat to the Claude desktop app when a task needs something only the desktop app has: ' +
@@ -724,7 +727,8 @@ function officePrompt(p) {
     `- Keep your cubicle current with mcp__office__update_cubicle: set "task" once you know today's task, move "stage" when the project moves, ` +
     `set status "blocked" if you are stuck, and put where you left off in "note" before you finish a chunk of work. ` +
     `Never end your own day: only the boss clocks you out. ` +
-    `If your reply asks the boss a question or needs a decision, set status "needs" right before you reply; otherwise leave status alone when you finish.\n` +
+    `If your reply asks the boss a question or needs a decision, call update_cubicle with status "needs", then write your full reply (the answer and the question) as normal text. ` +
+    `Changing your status is not a reply. Otherwise leave status alone when you finish.\n` +
     `- Write "task" and "note" for the boss in plain, friendly English that someone who isn't a developer understands: one short sentence, ` +
     `no file names, class names, code, commands or arrows. Say what it means for the project, for example "Tidying up the website header and fonts" ` +
     `rather than "hdr-logo tidy → Meaty .woff2".\n` +
