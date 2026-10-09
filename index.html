@@ -585,7 +585,9 @@
   .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
   @keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
   .typing { align-self: flex-start; color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: center; }
-  .typing img { width: 34px; height: 34px; }
+  .typing > img, .typing .face { width: 34px; height: 34px; }
+  .face { position: relative; display: inline-block; overflow: hidden; border-radius: 50%; background: var(--bubble); flex: none; }
+  .face img { position: absolute; max-width: none; height: auto; }
 
   /* Message-app thread (Chat tab) */
   .thread { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
@@ -936,6 +938,19 @@ const MOOD_STANDIN = { stuck: 'needs' };
 const critterSrc = (w, mood) => {
   const m = moods.has(`${w.critter}-${mood}`) ? mood : moods.has(`${w.critter}-${MOOD_STANDIN[mood]}`) ? MOOD_STANDIN[mood] : '';
   return m ? `/assets/critters/moods/${esc(w.critter)}-${m}.png` : `/assets/critters/${esc(w.critter)}.png`;
+};
+// Close-up of the face for chat avatars: centre x, centre y and square size in the 256px main picture.
+const FACES = {
+  'cottage-hamster': [126, 104, 140], 'cottage-hedgehog': [122, 126, 140], 'cottage-kitten': [110, 84, 140], 'cottage-otter': [100, 62, 130],
+  'forest-bunny': [112, 126, 140], 'forest-fox': [112, 106, 140], 'forest-frog': [90, 90, 140], 'forest-owl': [88, 78, 140],
+  'garden-badger': [136, 106, 140], 'garden-lamb': [100, 94, 140], 'garden-mole': [112, 108, 140], 'garden-turtle': [112, 94, 130],
+  'meadow-duckling': [115, 92, 130], 'meadow-fawn': [120, 110, 140], 'meadow-redpanda': [101, 100, 140], 'meadow-squirrel': [82, 100, 140],
+};
+const critterFace = (w, cls = 'av') => {
+  const f = FACES[w?.critter];
+  if (!f) return critterImg(w, cls, false);
+  const [x, y, s] = f, pct = n => `${(n / s * 100).toFixed(1)}%`;
+  return `<span class="face ${cls}"><img src="${critterSrc(w)}" alt="" style="width:${pct(256)};left:${pct(s / 2 - x)};top:${pct(s / 2 - y)}"></span>`;
 };
 // Tools that mean a critter is reading or looking around rather than making changes.
 const LOOKING = /^(Read|Glob|Grep|LS|WebSearch|WebFetch|ToolSearch|mcp__office__get_boss_todos|mcp__claude-in-chrome__(read_page|get_page_text|find|tabs_context_mcp))$/;
@@ -2302,7 +2317,7 @@ function threadHTML(items, p, working, { undo = false } = {}) {
     if (t.user) out.push(`<div class="row me"><div class="stack">${photosHTML(t.user.images)}${filesHTML(t.user.files)}${t.user.text ? `<div class="bubble">${md(t.user.text)}</div>` : ''}
       ${undo && t.user.uuid && !working ? `<button class="undo-btn" data-action="undo" data-id="${p.id}" data-u="${t.user.uuid}" title="Put the files back the way they were before this message">Undo From Here</button>` : ''}</div></div>`);
     const replies = t.items.filter(x => x.kind === 'assistant' && x.text?.trim());
-    if (replies.length) out.push(`<div class="row them">${critterImg(w, 'av', false)}<div class="stack"><div class="who">${esc(w.name)}</div>
+    if (replies.length) out.push(`<div class="row them">${critterFace(w)}<div class="stack"><div class="who">${esc(w.name)}</div>
       ${replies.map(x => `<div class="bubble">${md(x.text)}</div>`).join('')}</div></div>`);
     for (const x of t.items) {
       if (x.kind === 'system') out.push(`<div class="sys">${esc(x.text)}</div>`);
@@ -2312,7 +2327,7 @@ function threadHTML(items, p, working, { undo = false } = {}) {
   return out.join('');
 }
 function workingBubble(w) {
-  return `<div class="row them">${critterImg(w, 'av', false)}<div class="stack">
+  return `<div class="row them">${critterFace(w)}<div class="stack">
     <div class="bubble typing-bubble"><span class="dots"><i></i><i></i><i></i></span></div>
     <div class="who-sub">${esc(w.name)} is working…</div></div></div>`;
 }
@@ -2333,11 +2348,11 @@ function renderChatLog(forceBottom) {
   else html = `<div class="day-chip">Shift ${p.day}</div>` + threadHTML(chat.items, p, busy.has(p.id), { undo: true });
   const mine = [...perms.values()].filter(r => r.projectId === p.id);
   if (drawer.tab === 'chat' && mine.length) html += permHTML(mine[0]);
-  if (!busy.has(p.id) && p.helpers?.length && drawer.tab === 'chat') html += `<div class="row them">${critterImg(w, 'av', false)}<div class="stack">
+  if (!busy.has(p.id) && p.helpers?.length && drawer.tab === 'chat') html += `<div class="row them">${critterFace(w)}<div class="stack">
     <div class="bubble typing-bubble"><span class="dots"><i></i><i></i><i></i></span></div>
     <div class="who-sub">${esc(w.name)} is leading a team of ${p.helpers.length}: ${p.helpers.map(h => esc(h.description)).join(' · ')}</div></div></div>`;
   if (busy.has(p.id) && !mine.length) html += drawer.tab === 'chat' ? workingBubble(w)
-    : `<div class="typing">${critterImg(w, '', false)}<span class="dots"><i></i><i></i><i></i></span>${esc(w.name)} is working…</div>`;
+    : `<div class="typing">${critterFace(w, '')}<span class="dots"><i></i><i></i><i></i></span>${esc(w.name)} is working…</div>`;
   log.innerHTML = html;
   if (nearBottom) box.scrollTop = box.scrollHeight;
 }

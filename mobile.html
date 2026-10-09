@@ -73,6 +73,8 @@
   .row { display: flex; gap: 8px; align-items: flex-end; }
   .row.me { justify-content: flex-end; }
   .row .av { width: 34px; height: 34px; flex: none; }
+  .face { position: relative; display: inline-block; overflow: hidden; border-radius: 50%; background: var(--bubble); }
+  .face img { position: absolute; max-width: none; height: auto; }
   .stack { display: flex; flex-direction: column; gap: 4px; max-width: 84%; min-width: 0; align-items: flex-start; }
   .row.me .stack { align-items: flex-end; }
   .bubble { padding: 9px 14px; border-radius: 20px; overflow-wrap: anywhere; max-width: 100%; }
@@ -182,6 +184,19 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const find = id => office.projects.find(p => p.id === id);
 const workerOf = p => office.workers.find(w => w.id === p?.workerId) || { name: 'Worker', critter: null, animal: '' };
 const img = (w, cls = '') => w.critter ? `<img class="${cls}" src="/assets/critters/${esc(w.critter)}.png" alt="">` : '';
+// Close-up of the face for chat avatars: centre x, centre y and square size in the 256px main picture.
+const FACES = {
+  'cottage-hamster': [126, 104, 140], 'cottage-hedgehog': [122, 126, 140], 'cottage-kitten': [110, 84, 140], 'cottage-otter': [100, 62, 130],
+  'forest-bunny': [112, 126, 140], 'forest-fox': [112, 106, 140], 'forest-frog': [90, 90, 140], 'forest-owl': [88, 78, 140],
+  'garden-badger': [136, 106, 140], 'garden-lamb': [100, 94, 140], 'garden-mole': [112, 108, 140], 'garden-turtle': [112, 94, 130],
+  'meadow-duckling': [115, 92, 130], 'meadow-fawn': [120, 110, 140], 'meadow-redpanda': [101, 100, 140], 'meadow-squirrel': [82, 100, 140],
+};
+const face = w => {
+  const f = FACES[w.critter];
+  if (!f) return img(w, 'av');
+  const [x, y, s] = f, pct = n => `${(n / s * 100).toFixed(1)}%`;
+  return `<span class="face av"><img src="/assets/critters/${esc(w.critter)}.png" alt="" style="width:${pct(256)};left:${pct(s / 2 - x)};top:${pct(s / 2 - y)}"></span>`;
+};
 const asks = id => [...perms.values()].filter(r => r.projectId === id);
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 3500); }
 async function api(method, url, body) {
@@ -257,7 +272,7 @@ function threadHTML(items, p, working) {
   return turns.map(t => {
     let out = t.user ? `<div class="row me"><div class="stack">${photosHTML(t.user.images)}${filesHTML(t.user.files)}${t.user.text ? `<div class="bubble">${md(t.user.text)}</div>` : ''}</div></div>` : '';
     const replies = t.items.filter(x => x.kind === 'assistant' && x.text?.trim());
-    if (replies.length) out += `<div class="row them">${img(w, 'av')}<div class="stack">${replies.map(x => `<div class="bubble">${md(x.text)}</div>`).join('')}</div></div>`;
+    if (replies.length) out += `<div class="row them">${face(w)}<div class="stack">${replies.map(x => `<div class="bubble">${md(x.text)}</div>`).join('')}</div></div>`;
     for (const x of t.items) {
       if (x.kind === 'system') out += `<div class="sys">${esc(x.text)}</div>`;
       if (x.kind === 'done' && x.error) out += `<div class="sys err">Stopped: ${esc(x.error)}</div>`;
@@ -302,7 +317,7 @@ function renderThread(toBottom) {
     : chat.items.length ? threadHTML(chat.items, p, busy.has(p.id)) : `<p class="sys">Say hello to ${esc(w.name)}.</p>`;
   const mine = asks(p.id);
   html += mine.map(r => askHTML(r, p)).join('');
-  if (!mine.length && (busy.has(p.id) || p.helpers?.length)) html += `<div class="row them">${img(w, 'av')}<div class="stack">
+  if (!mine.length && (busy.has(p.id) || p.helpers?.length)) html += `<div class="row them">${face(w)}<div class="stack">
     <div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>
     <div class="who-sub">${esc(w.name)} is ${p.helpers?.length ? `leading a team of ${p.helpers.length}` : 'working'}…</div></div></div>`;
   const typing = document.activeElement?.dataset?.why;
