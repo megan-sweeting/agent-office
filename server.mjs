@@ -233,6 +233,68 @@ const ownerName = () => String(office.settings?.name || '').replace(/[\/:*?"<>|]
 const forFolder = () => `For ${ownerName() || 'the Boss'}`;
 const fromFolder = () => `From ${ownerName() || 'the Boss'}`;
 
+// Reading the "For <name>" folder from the phone. Everything is checked against the folder's real path,
+// so "../" and links that point elsewhere can't reach other files.
+function forRoot(p) {
+  if (!p.folder) return null;
+  try {
+    const home = fs.realpathSync.native(p.folder), r = fs.realpathSync.native(path.join(home, forFolder()));
+    return r.startsWith(home + path.sep) && fs.statSync(r).isDirectory() ? r : null;
+  } catch { return null; }
+}
+function insideFor(root, rel) {
+  try {
+    const f = fs.realpathSync.native(path.join(root, String(rel)));
+    const hidden = path.relative(root, f).split(path.sep).some(s => s.startsWith('.'));
+    return f.startsWith(root + path.sep) && !hidden && fs.statSync(f).isFile() ? f : null;
+  } catch { return null; }
+}
+function listFor(root) {
+  const out = [];
+  const walk = (dir, depth) => {
+    let ents = [];
+    try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const d of ents) {
+      if (d.name.startsWith('.') || out.length >= 300) continue;
+      const full = path.join(dir, d.name);
+      if (d.isDirectory()) { if (depth < 4) walk(full, depth + 1); continue; }
+      const f = insideFor(root, path.relative(root, full));
+      if (!f) continue;
+      const st = fs.statSync(f);
+      out.push({ path: path.relative(root, full), size: st.size, modified: st.mtimeMs });
+    }
+  };
+  walk(root, 0);
+  return out.sort((a, b) => b.modified - a.modified);
+}
+const FILE_TYPES = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', svg: 'image/svg+xml',
+  pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/plain', json: 'text/plain', log: 'text/plain',
+  html: 'text/html', htm: 'text/html', mp4: 'video/mp4', mov: 'video/quicktime', m4v: 'video/mp4', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav',
+};
+function sendFile(req, res, file, download) {
+  const type = FILE_TYPES[path.extname(file).slice(1).toLowerCase()];
+  const size = fs.statSync(file).size;
+  const name = encodeURIComponent(path.basename(file));
+  const headers = {
+    'Content-Type': type ? type + (type.startsWith('text/') ? '; charset=utf-8' : '') : 'application/octet-stream',
+    'Content-Disposition': `${type && !download ? 'inline' : 'attachment'}; filename*=UTF-8''${name}`,
+    // Pages and SVGs a critter made open in a sealed-off box, so their scripts can't use the office.
+    'Content-Security-Policy': 'sandbox allow-scripts', 'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes',
+  };
+  // Phones fetch videos in pieces.
+  const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (r && size) {
+    let start = r[1] ? +r[1] : Math.max(0, size - +r[2]), end = r[1] && r[2] ? Math.min(+r[2], size - 1) : size - 1;
+    if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
+    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+    return fs.createReadStream(file, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { ...headers, 'Content-Length': size });
+  fs.createReadStream(file).pipe(res);
+}
+
 const wrapUp = () => `Time to wrap up this shift, please.
 1. Finish or safely pause what you're doing.
 2. Put anything I need to look at in the "${forFolder()}" folder in this project.
@@ -1533,7 +1595,7 @@ const server = http.createServer(async (req, res) => {
       const allowed = (m === 'GET' && (a === 'events' || a === 'chat')) ||
         (m === 'POST' && a === 'permissions' && id) ||
         (m === 'POST' && a === 'projects' && id && ['message', 'stop', 'read'].includes(b)) ||
-        (m === 'GET' && a === 'projects' && id && b === 'commands');
+        (m === 'GET' && a === 'projects' && id && ['commands', 'files'].includes(b));
       if (!allowed) return send(res, 403, { error: 'That only works from the office on your Mac.' });
     }
 
@@ -1821,6 +1883,15 @@ const server = http.createServer(async (req, res) => {
       if (b === 'stop' && m === 'POST') {
         await workers.get(p.id)?.q.interrupt().catch(() => {});
         return send(res, 200, { ok: true });
+      }
+      // The "For <name>" folder, read-only, so the phone can see what critters made.
+      if (b === 'files' && m === 'GET') {
+        const root = forRoot(p);
+        const rel = url.searchParams.get('path');
+        if (!rel) return send(res, 200, { folder: forFolder(), files: root ? listFor(root) : [] });
+        const file = root && insideFor(root, rel);
+        if (!file) return send(res, 404, { error: "That file isn't in the folder any more." });
+        return sendFile(req, res, file, url.searchParams.get('download'));
       }
       if (b === 'new-day' && m === 'POST') {
         const { now } = await body(req);

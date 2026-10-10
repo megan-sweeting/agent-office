@@ -146,6 +146,16 @@
   .file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .photo-tray .file-chip { height: 64px; padding-right: 26px; position: relative; flex: none; }
   .photos img { max-width: 200px; max-height: 200px; border-radius: 16px; border: 2px solid var(--line-soft); display: block; object-fit: cover; }
+  /* For <name> folder */
+  .bar-btn { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--line); background: transparent; color: var(--ink); padding: 0; }
+  .files { list-style: none; margin: 0; padding: 6px 0; }
+  .files li + li { border-top: 1px solid var(--line-soft); }
+  .files a { display: flex; gap: 12px; align-items: center; padding: 10px 16px; text-decoration: none; min-height: 64px; }
+  .files .thumb { width: 56px; height: 56px; flex: none; border-radius: 12px; border: 2px solid var(--line-soft); background: var(--card); object-fit: cover; display: grid; place-items: center; color: var(--muted); }
+  .files .name { flex: 1; min-width: 0; }
+  .files .name b { display: block; font-weight: 700; overflow-wrap: anywhere; }
+  .files .name span { display: block; color: var(--muted); font-size: 13px; }
+  .files-head { padding: 12px 16px 0; color: var(--muted); font-size: 14px; font-weight: 700; }
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   #toast { position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 84px); background: var(--ink); color: var(--paper);
     padding: 10px 14px; border-radius: 14px; font-weight: 700; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
@@ -306,8 +316,10 @@ function askHTML(r, p) {
 function renderThread(toBottom) {
   const p = find(openId);
   if (!p) { openId = null; return renderList(); }
+  if (shelf) return renderFiles();
   const w = workerOf(p), [label] = busy.has(p.id) ? ['Working…'] : (STATUS[p.status] || STATUS.out);
-  $('#bar').innerHTML = `<button class="back" data-back aria-label="All chats">‹</button>${img(w)}<h1>${esc(w.name)}<small>${esc(p.name)} · ${label}</small></h1><span class="conn">${connected ? '' : 'Reconnecting…'}</span>`;
+  $('#bar').innerHTML = `<button class="back" data-back aria-label="All chats">‹</button>${img(w)}<h1>${esc(w.name)}<small>${esc(p.name)} · ${label}</small></h1><span class="conn">${connected ? '' : 'Reconnecting…'}</span>
+    <button class="bar-btn" data-files aria-label="Files ${esc(w.name)} left for you">${FOLDER_ICON}</button>`;
   $('#composer').hidden = false; renderTray();
   $('#msg').placeholder = `Message ${w.name}…`;
   $('#stop').hidden = !busy.has(p.id);
@@ -342,8 +354,45 @@ async function openChat(id) {
   }
   if (chat?.id === id) { chat.loading = false; renderThread(true); }
 }
-function closeChat() { openId = null; chat = null; renderList(); }
-window.addEventListener('popstate', () => { if (openId) closeChat(); });
+function closeChat() { openId = null; chat = null; shelf = null; renderList(); }
+window.addEventListener('popstate', () => { if (shelf) closeFiles(); else if (openId) closeChat(); });
+
+/* ---------- Files the critter left in the "For <name>" folder (look only) ---------- */
+const FOLDER_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>';
+let shelf = null;  // { id, loading, folder, files }
+const fileURL = (id, rel) => `/api/projects/${id}/files?path=${encodeURIComponent(rel)}&token=${TOKEN}`;
+const sizeText = n => n < 1024 ? `${n} bytes` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+const whenText = t => {
+  const d = new Date(t), today = new Date().toDateString() === d.toDateString();
+  return today ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+};
+async function openFiles() {
+  if (!openId) return;
+  const id = openId;
+  shelf = { id, loading: true, files: [] };
+  history.pushState({ id, files: true }, '', '#' + id + '/files');
+  renderFiles();
+  try { Object.assign(shelf, await api('GET', `/api/projects/${id}/files`)); } catch (e) {}
+  if (shelf?.id === id) { shelf.loading = false; renderFiles(); }
+}
+function closeFiles() { shelf = null; renderThread(true); }
+function renderFiles() {
+  const p = find(shelf.id);
+  if (!p) { shelf = null; return closeChat(); }
+  const w = workerOf(p), folder = shelf.folder || 'For you';
+  $('#bar').innerHTML = `<button class="back" data-files-back aria-label="Back to the chat">‹</button>${img(w)}<h1>${esc(folder)}<small>${esc(p.name)}</small></h1>`;
+  $('#composer').hidden = true; $('#photoTray').hidden = true;
+  const f = shelf.files;
+  $('#main').innerHTML = shelf.loading ? '<p class="sys">Loading…</p>'
+    : !f.length ? `<p class="empty">Nothing in the "${esc(folder)}" folder yet. When ${esc(w.name)} makes something for you to look at, it shows up here.</p>`
+    : `<p class="files-head">Newest first. Tap to open.</p><ul class="files">${f.map(x => {
+      const pic = /\.(png|jpe?g|gif|webp)$/i.test(x.path);
+      const name = x.path.split('/').pop(), sub = x.path.includes('/') ? x.path.slice(0, x.path.lastIndexOf('/')) + ' · ' : '';
+      return `<li><a href="${fileURL(p.id, x.path)}" target="_blank" rel="noopener">
+        ${pic ? `<img class="thumb" src="${fileURL(p.id, x.path)}" alt="" loading="lazy">` : `<span class="thumb">${FILE_ICON}</span>`}
+        <span class="name"><b>${esc(name)}</b><span>${esc(sub)}${whenText(x.modified)} · ${sizeText(x.size)}</span></span></a></li>`;
+    }).join('')}</ul>`;
+}
 
 /* ---------- Live link ---------- */
 function connect() {
@@ -374,7 +423,7 @@ function connect() {
     else if (ev.type === 'loginOk') { needsLogin.clear(); rerender(); }
   };
 }
-function rerender() { openId ? renderThread() : renderList(); }
+function rerender() { shelf ? renderFiles() : openId ? renderThread() : renderList(); }
 setInterval(() => { if (!connected || es?.readyState === 2 || (lastHeard && Date.now() - lastHeard > 50000)) connect(); }, 10000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && (!connected || Date.now() - lastHeard > 50000)) connect(); });
 
@@ -385,6 +434,8 @@ document.addEventListener('click', async e => {
   if (t.dataset.action === 'copy-code') return copyCode(t);
   if (t.dataset.open) return openChat(t.dataset.open);
   if (t.hasAttribute('data-back')) { history.back(); return closeChat(); }
+  if (t.hasAttribute('data-files')) return openFiles();
+  if (t.hasAttribute('data-files-back')) return history.back();  // popstate closes the files
   if (t.dataset.perm) {
     const why = document.querySelector(`[data-why="${t.dataset.req}"]`)?.value.trim();
     t.closest('.ask').querySelectorAll('button').forEach(b => { b.disabled = true; });
