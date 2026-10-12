@@ -803,7 +803,10 @@ function officePrompt(p) {
     `- Guardrails: you never delete core Mac system files. Anything touching Mac system files or settings, passwords or keys, Burrow & Co. itself, ` +
     `admin (sudo) commands, files outside this project, deleting folders, pushing code, or installing software goes to the boss for approval first.\n` +
     `- Anything you make for the boss to look at (previews, exports, screenshots, files to upload) goes in a folder named "${forFolder()}" ` +
-    `inside this project's folder (create it if needed). Never put files on the Desktop or anywhere outside the project folder.` +
+    `inside this project's folder (create it if needed). Never put files on the Desktop or anywhere outside the project folder.\n` +
+    `- When you build or change something the boss can see in a browser (a website, an app, a test copy), start a local preview server, ` +
+    `write its full address (like http://localhost:5173) in your reply, and leave it running when you finish so the boss can use the Open Preview button ` +
+    `at the top of your cubicle. Stop it only when you start a newer preview or the boss asks.` +
     personalityPrompt(w);
 }
 
@@ -1375,7 +1378,9 @@ function quietly(p, f) { Object.assign(p, f); save(); broadcast({ type: 'project
 function notePreview(p, items) {
   let url = null;
   for (const x of items) {
-    const t = x.kind === 'assistant' || x.kind === 'result' ? x.text : x.kind === 'tool' && x.name === 'Bash' ? x.input?.command : '';
+    const t = x.kind === 'assistant' || x.kind === 'result' ? x.text
+      : x.kind === 'tool' && x.name === 'Bash' ? x.input?.command
+      : x.kind === 'tool' && /navigate|preview/i.test(x.name) ? x.input?.url : '';
     for (const m of String(t || '').matchAll(LOCAL_URL)) if (+m[1] !== PORT) url = m[0].replace('0.0.0.0', 'localhost').replace(/[.,;:!]+$/, '');
   }
   if (url && p.preview?.url !== url) { quietly(p, { preview: { url, at: Date.now() } }); setTimeout(() => checkPreview(p), 1500); }

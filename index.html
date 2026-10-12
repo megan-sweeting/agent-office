@@ -1385,7 +1385,7 @@ function cubeHTML(p) {
         <button class="mate" data-action="open" data-id="${m.id}" title="${esc(mw.name)}: ${esc(m.task || 'desk mate')}">${critterImg(mw, '', false)}<b>${esc(mw.name)}</b>
           <span class="pill" style="${statusVars(m.status)}">${n ? 'May I?' : busy.has(m.id) ? 'Working' : ms.label}</span>${m.unread ? '<i class="mate-dot" aria-label="New reply"></i>' : ''}</button>`; }).join('')}</div>` : ''}
       <footer><span class="grow">${ago(p.updatedAt)}</span>
-        ${p.previewLive ? `<button class="btn small" data-action="preview" data-id="${p.id}" title="${esc(p.preview.url)}">Open Preview</button>` : ''}
+        ${previewButton(p)}
         ${newDayButton(p)}</footer>
     </div>
   </article>`;
@@ -1405,6 +1405,14 @@ function runningChip(p) {
   const all = p.running.map(r => r.description).join(' · ');
   const label = p.running.length > 1 ? `${p.running.length} things` : p.running[0].description;
   return `<span class="pill running" title="Running in the background: ${esc(all)}">Running: ${esc(label)}</span>`;
+}
+
+// Once a critter has shown a preview address, the button stays: Open while it answers, Start (asks the critter) once it stops.
+function previewButton(p) {
+  if (!p.preview?.url) return '';
+  return p.previewLive
+    ? `<button class="btn small accent" data-action="preview" data-id="${p.id}" title="${esc(p.preview.url)}">Open Preview</button>`
+    : `<button class="btn small" data-action="preview-start" data-id="${p.id}" title="The preview at ${esc(p.preview.url)} has stopped. Ask ${esc(workerOf(p).name)} to start it again.">Start Preview</button>`;
 }
 
 function newDayButton(p) {
@@ -2197,7 +2205,7 @@ function drawerHead(p) {
     <div class="d-actions">
       ${p.closed ? `<button class="btn small primary" data-action="reopen" data-id="${p.id}">Reopen Project</button>` : `
         ${p.sessionId ? `<button class="btn small" data-action="open-desktop" data-id="${p.id}" title="See this chat with the browser pane, diffs, artifacts and simulator">Open in Claude Desktop</button>` : ''}
-        ${p.previewLive ? `<button class="btn small" data-action="preview" data-id="${p.id}" title="${esc(p.preview.url)}">Open Preview</button>` : ''}
+        ${previewButton(p)}
         ${p.worktree ? `<button class="btn small accent" data-action="bring-back" data-id="${p.id}" title="Put ${esc(w.name)}'s saved work into the main project">Bring Work Back</button>` : ''}
         ${newDayButton(p)}
         ${p.folder ? `<button class="btn small" data-action="open-folder" data-id="${p.id}" title="Show the project folder in Finder">Open Folder</button>` : ''}
@@ -3099,6 +3107,10 @@ document.addEventListener('click', async e => {
       return;
     }
     case 'preview': return api('POST', `/api/projects/${p.id}/preview`).catch(() => {});
+    case 'preview-start':
+      el.disabled = true; el.textContent = 'Asking…';
+      return api('POST', `/api/projects/${p.id}/message`, { text: `Please start the preview again (${p.preview.url}) and leave it running so I can look at it.` })
+        .catch(err => toast(err.message));
     case 'publish': {
       el.disabled = true; el.textContent = 'Publishing…';
       const r = await api('POST', `/api/projects/${p.id}/publish`).catch(() => null);
