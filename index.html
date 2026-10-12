@@ -352,7 +352,7 @@
   .settings .guardrails { grid-column: 1 / -1; }
   .settings .you .label:first-of-type { margin-top: 0; }
   .settings .you p { margin: 6px 0 0; font-size: 13px; line-height: 1.45; }
-  .settings .alerts p { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
+  .settings .alerts p, .settings .backup p { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
   @media (max-width: 900px) { .settings { grid-template-columns: 1fr; } }
   .panel { background: var(--card); border: 3px solid var(--wall); border-radius: 22px; padding: 18px 22px; }
   .version p { margin: 6px 0 0; font-size: 14px; line-height: 1.45; }
@@ -796,8 +796,6 @@
     <button class="btn" data-action="go" data-v="meadow" id="nav-meadow">The Meadow</button>
     <button class="btn" data-action="go" data-v="search" id="nav-search" title="Search all chats (⌘K)">Search</button>
     <button class="btn" data-action="go" data-v="settings" id="nav-settings">Settings</button>
-    <button class="btn" data-action="export" title="Download a backup of everything">Export</button>
-    <label class="btn" title="Restore from a backup file">Import<input type="file" id="importFile" accept="application/json,.json" hidden></label>
   </nav>
 </header>
 <main id="app"></main>
@@ -1889,6 +1887,12 @@ function renderSettings() {
       <section class="panel version">
         <h3>Office Version</h3>
         <div id="verPanel">${versionHTML()}</div>
+      </section>
+      <section class="panel backup">
+        <h3>Backup</h3>
+        <p class="muted">Export downloads everything in the office as one file. Import replaces the whole office with a file you exported earlier.</p>
+        <div class="row-btns"><button class="btn small" data-action="export" title="Download a backup of everything">Export</button>
+          <label class="btn small" title="Restore from a backup file">Import<input type="file" id="importFile" accept="application/json,.json" hidden></label></div>
       </section>
       </div>
       <div class="set-col">
@@ -3506,7 +3510,9 @@ function exportData() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$('#importFile').addEventListener('change', async e => {
+// The Import input lives on the Settings page, which re-renders, so listen on the document.
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'importFile') return;
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
