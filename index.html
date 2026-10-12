@@ -427,6 +427,8 @@
   /* Forms */
   .field { width: 100%; border: 2px solid var(--line); border-radius: 14px; padding: 9px 12px; background: var(--paper); }
   textarea.field { resize: vertical; min-height: 70px; }
+  .scratch-head { margin-top: 20px; }
+  textarea.scratch { min-height: 160px; }
   .field:focus { outline: none; border-color: var(--moss); }
   /* Our own arrow on dropdowns: the browser's sits tight against the rounded edge. */
   select.field { appearance: none; -webkit-appearance: none; padding-right: 38px; cursor: pointer;
@@ -2266,7 +2268,7 @@ function renderDrawer(full) {
     if (full) $('#dFoot').innerHTML = '';
     if (full || !editing) {
       const scroll = $('#dBody').scrollTop;
-      $('#dBody').innerHTML = drawer.tab === 'details' ? (p.deskOf ? mateDetailsHTML(p) : detailsHTML(p)) : drawer.tab === 'todos' ? todosTabHTML(homeOf(p))
+      $('#dBody').innerHTML = drawer.tab === 'details' ? (p.deskOf ? mateDetailsHTML(p) : detailsHTML(p)) : drawer.tab === 'todos' ? todosTabHTML(homeOf(p), p)
         : drawer.tab === 'changes' ? changesHTML(p) : pastHTML(p);
       if (!full) $('#dBody').scrollTop = scroll;
     }
@@ -2442,7 +2444,8 @@ function updateComposer(p) {
   if (msg && msg.disabled === !!p.folder) renderComposer(p);
 }
 
-function todosTabHTML(p) {
+// The scratch pad belongs to the open cubicle itself, so desk mates each keep their own.
+function todosTabHTML(p, seat = p) {
   const w = workerOf(p);
   const open = p.todos.filter(t => !t.done).length;
   const done = p.todos.length - open;
@@ -2460,7 +2463,9 @@ function todosTabHTML(p) {
           ${t.doneAt ? `<small class="muted">${fmtDate(t.doneAt)}</small>` : ''}
         </li>`).join('')}</ul>
       <button class="btn small" data-action="clear-done" data-id="${p.id}">Clear Completed</button>
-    </details>` : ''}`;
+    </details>` : ''}
+    <h3 class="scratch-head">Scratch pad</h3>
+    <textarea class="field scratch" id="f-scratch" data-field="scratch" aria-label="Scratch pad" placeholder="Jot anything down. Only you see this; ${esc(workerOf(seat).name)} doesn't.">${esc(seat.scratch || '')}</textarea>`;
 }
 
 function detailsHTML(p) {

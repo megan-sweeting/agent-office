@@ -119,7 +119,7 @@ function cleanTrustedSites(list) {
 }
 const EFFORTS = ['', 'low', 'medium', 'high', 'xhigh', 'max'];
 const EDITABLE = ['name', 'plate', 'model', 'effort', 'jobs', 'chromeFree', 'stage', 'status', 'task', 'note', 'folder',
-  'permissionMode', 'useChrome', 'todos', 'ideas', 'unread', 'inDesktop'];
+  'permissionMode', 'useChrome', 'todos', 'ideas', 'scratch', 'unread', 'inDesktop'];
 
 // If the office was started from inside a Claude desktop session, drop the variables that
 // session injected; otherwise workers try to reuse its connection and report "Not logged in".
@@ -207,7 +207,7 @@ function practiceTick(p, step) {
 function newProject(fields = {}) {
   return {
     id: uid(), name: 'New project', plate: PLATES[office.projects.length % PLATES.length], workerId: null, closed: false, closedAt: null,
-    stage: 0, status: 'out', task: '', note: '', day: 1, dayStartedAt: Date.now(), updatedAt: Date.now(),
+    stage: 0, status: 'out', task: '', note: '', scratch: '', day: 1, dayStartedAt: Date.now(), updatedAt: Date.now(),
     history: [], todos: [], ideas: [], folder: '', sessionId: null,
     permissionMode: 'free', useChrome: false, wrapping: false, unread: false, inDesktop: false,
     ...fields,
@@ -1835,6 +1835,7 @@ const server = http.createServer(async (req, res) => {
         if ('model' in clean && !MODELS.includes(clean.model)) return send(res, 400, { error: 'Unknown model.' });
         if ('effort' in clean && !EFFORTS.includes(clean.effort)) return send(res, 400, { error: 'Unknown effort level.' });
         if ('jobs' in clean) { try { clean.jobs = cleanJobs(clean.jobs, p.jobs); } catch (e) { return send(res, 400, { error: e.message }); } }
+        if ('scratch' in clean) clean.scratch = String(clean.scratch ?? '').slice(0, 50000);
         if ('permissionMode' in clean && !APPROVALS.includes(clean.permissionMode)) return send(res, 400, { error: 'Unknown approval setting.' });
         const sandboxFlip = 'permissionMode' in clean && (clean.permissionMode === 'free') !== (p.permissionMode === 'free');
         const newFolder = 'folder' in clean && clean.folder !== p.folder;  // a new folder means a new chat anyway
