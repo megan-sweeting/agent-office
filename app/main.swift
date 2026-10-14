@@ -100,8 +100,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }.resume()
     }
 
-    func ensureServer(_ done: @escaping (Bool) -> Void) {
+    // checked: true skips the check below, so a restart that still finds a wrong office can't loop.
+    func ensureServer(checked: Bool = false, _ done: @escaping (Bool) -> Void) {
         serverIsUp { up in
+            if up && !checked {
+                return self.wrongOffice { why in
+                    DispatchQueue.main.async {
+                        guard let why = why else { return done(true) }
+                        self.restartServer(why, done)
+                    }
+                }
+            }
             if up { return DispatchQueue.main.async { done(true) } }
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -115,11 +124,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         }
     }
 
+    // Why the office on our port shouldn't be used, or nil when it's fine. Two cases:
+    // - it runs from a different folder (another copy of the office, e.g. a staging copy), and
+    // - it started before this Mac login. Logging out doesn't stop it, but it is stuck in the old login:
+    //   new claudes say "Not logged in" and it can't open Terminal. Only the app runs in the new login.
+    // An office too old to say (no folder or startedAt) is used as it is.
+    func wrongOffice(_ done: @escaping (String?) -> Void) {
+        let token = (try? String(contentsOf: officeFolder.appendingPathComponent(".office-token"), encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var req = URLRequest(url: officeURL.appendingPathComponent("api/version"))
+        req.timeoutInterval = 5
+        req.setValue(token, forHTTPHeaderField: "X-Office-Token")
+        URLSession.shared.dataTask(with: req) { data, res, _ in
+            let status = (res as? HTTPURLResponse)?.statusCode ?? 0
+            // Each office folder has its own token, so a refused token means another copy's office.
+            if status == 401 { return done("its token doesn't match \(officeFolder.path)") }
+            guard status == 200, let data = data,
+                  let v = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return done(nil) }
+            if let folder = v["folder"] as? String,
+               URL(fileURLWithPath: folder).resolvingSymlinksInPath().path != officeFolder.resolvingSymlinksInPath().path {
+                return done("it runs from \(folder), not \(officeFolder.path)")
+            }
+            if let ms = v["startedAt"] as? Double, let login = self.loginTime(), ms / 1000 < login.timeIntervalSince1970 {
+                return done("it started \(Date(timeIntervalSince1970: ms / 1000)), before this Mac login at \(login)")
+            }
+            done(nil)
+        }.resume()
+    }
+
+    // When this Mac login began: the start of the loginwindow process, which macOS starts afresh
+    // for each login. AGENT_OFFICE_FAKE_LOGIN (seconds since 1970) stands in for it when testing.
+    func loginTime() -> Date? {
+        if let fake = Double(env["AGENT_OFFICE_FAKE_LOGIN"] ?? "") { return Date(timeIntervalSince1970: fake) }
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.loginwindow").first else { return nil }
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, app.processIdentifier]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        let t = info.kp_proc.p_starttime
+        return Date(timeIntervalSince1970: Double(t.tv_sec) + Double(t.tv_usec) / 1_000_000)
+    }
+
     // Restart the Office (from the page): stop the office, wait for it to exit, then start it fresh from
     // the app. A restart the office does by itself starts the new copy from the old one, which may keep
     // the old copy's problem (one office stopped seeing Claude's sign-in until the app started it again).
-    func restartServer() {
-        appLog("restarting the office (asked by the page)")
+    // ensureServer also calls this, with done, when it finds a wrong office.
+    func restartServer(_ why: String = "asked by the page", _ done: ((Bool) -> Void)? = nil) {
+        appLog("restarting the office (\(why))")
         showMessage("Restarting the office…")
         DispatchQueue.global().async {
             let pids = self.serverPids()
@@ -128,7 +179,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             while tries > 0 && pids.contains(where: { kill($0, 0) == 0 }) { usleep(250_000); tries -= 1 }
             for pid in pids where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
             DispatchQueue.main.async {
-                self.ensureServer { ok in
+                self.ensureServer(checked: true) { ok in
+                    if let done = done { return done(ok) }
                     if ok { self.web.load(URLRequest(url: officeURL)) }
                     else { self.showMessage("The office didn't start again. Check ~/Library/Logs/Burrow & Co.log, then press Cmd+R.") }
                 }
@@ -190,6 +242,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             }
         } else if kind == "restart-office" {
             restartServer()
+        } else if kind == "sign-in", let claude = body["claude"] as? String {
+            openSignIn(claude)
         } else if kind == "test-alert" {
             testNotification()
         } else if kind == "ask-done", let reqId = body["reqId"] as? String {
@@ -218,6 +272,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             }
         }
         done()
+    }
+
+    // Sign In when the office couldn't open Terminal itself: a .command file opens in Terminal from
+    // this app, which is always in the current Mac login. Only runs a real program named claude.
+    func openSignIn(_ claude: String) {
+        let bin = URL(fileURLWithPath: claude).resolvingSymlinksInPath()
+        guard URL(fileURLWithPath: claude).lastPathComponent == "claude", FileManager.default.isExecutableFile(atPath: bin.path),
+              let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            return appLog("sign-in: won't run \(claude)")
+        }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("Burrow & Co. sign-in.command")
+        let quoted = "'" + claude.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        do {
+            try "#!/bin/zsh -l\nrm -f \"$0\"\n\(quoted) /login\n".write(to: file, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
+        } catch { return appLog("sign-in: couldn't write \(file.path): \(error.localizedDescription)") }
+        NSWorkspace.shared.open([file], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration()) { _, err in
+            appLog(err == nil ? "sign-in: opened Terminal from the app" : "sign-in: couldn't open Terminal: \(err!.localizedDescription)")
+        }
     }
 
     func answer(reqId: String, decision: String) {

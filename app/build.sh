@@ -1,8 +1,24 @@
 #!/bin/bash
 # Builds ~/Applications/Burrow & Co.app from main.swift and assets/app-icon.png.
+# APP=/some/path/Test.app ./build.sh builds somewhere else (for testing).
 set -e
 cd "$(dirname "$0")"
-APP="$HOME/Applications/Burrow & Co.app"
+APP="${APP:-$HOME/Applications/Burrow & Co.app}"
+HERE="$(cd .. && pwd)"
+
+# The app starts the office from the folder it was built in. Building from a second copy (say a
+# staging copy) would quietly switch the app over to that copy's office, so ask first.
+# FORCE=1 ./build.sh skips the question.
+OLDFOLDER=""
+[ -f "$APP/Contents/Info.plist" ] && OLDFOLDER=$(/usr/libexec/PlistBuddy -c "Print :AgentOfficeFolder" "$APP/Contents/Info.plist" 2>/dev/null || true)
+if [ -n "$OLDFOLDER" ] && [ "$OLDFOLDER" != "$HERE" ] && [ "$FORCE" != 1 ]; then
+  echo "$APP already opens the office in:"
+  echo "  $OLDFOLDER"
+  echo "Building here would make it open this one instead:"
+  echo "  $HERE"
+  read -r -p "Replace it? [y/N] " yes
+  case "$yes" in [yY]*) ;; *) echo "Left the app as it was."; exit 1 ;; esac
+fi
 ICON="../assets/app-icon.png"
 SET="$(mktemp -d)/AppIcon.iconset"
 
@@ -40,7 +56,7 @@ EOF
 # Remember where the office lives (the folder above app/), and use your own bundle ID if you set one:
 #   BUNDLE_ID=com.yourname.agent-office ./build.sh
 PLIST="$APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :AgentOfficeFolder string $(cd .. && pwd)" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :AgentOfficeFolder string $HERE" "$PLIST"
 [ -n "$BUNDLE_ID" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
 
 # Sign with your Apple Development certificate when there is one (a stable identity macOS

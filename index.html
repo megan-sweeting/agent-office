@@ -359,6 +359,7 @@
   .version .ver-now code { font-weight: 700; }
   .version ul { margin: 6px 0 0; padding-left: 20px; font-size: 14px; }
   .version .ver-done { color: var(--ok); font-weight: 700; }
+  .version .ver-folder { margin-top: 12px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
   .panel h3 { margin: 0 0 4px; font-size: 19px; }
   .panel > p { margin: 0 0 14px; color: var(--muted); }
   .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
@@ -1532,7 +1533,12 @@ function loadVersion() {
   api('GET', '/api/version').then(r => { ver = r; }).catch(() => { ver = { failed: true }; }).finally(renderVersion);
 }
 function renderVersion() { const el = $('#verPanel'); if (el) el.innerHTML = versionHTML(); }
+// Which copy of the office is running, so an app pointing at the wrong folder is easy to spot.
 function versionHTML() {
+  const where = ver?.folder ? `<p class="ver-folder">Office folder: <code>${esc(ver.folder)}</code></p>` : '';
+  return versionBodyHTML() + where;
+}
+function versionBodyHTML() {
   if (!ver) setTimeout(loadVersion, 0);  // the page opened straight onto Settings
   if (!ver || ver.loading) return '<p class="muted">Looking up this version…</p>';
   if (ver.failed) return "<p class=\"muted\">Couldn't look up the version right now.</p>";
@@ -1594,7 +1600,11 @@ function signInFlowHTML(name) {
   if (s === 'needs') return `<p>Claude isn't signed in${name ? `, so ${esc(name)} can't work yet` : ''}.</p><button class="btn small accent" data-action="signin">Sign In to Claude</button>`;
   if (s === 'opening') return `<p>Opening Terminal…</p>`;
   if (s === 'opened') return `<p>Finish signing in in the Terminal window (pick option 1 if you have a Claude subscription). Then come back here.</p>
-    <button class="btn small accent" data-action="signin-check">I'm Signed In</button>`;
+    ${signIn.viaApp ? `<p><small>The office couldn't open Terminal by itself, so the app did. If I'm Signed In doesn't work, restart the office.</small></p>` : ''}
+    <button class="btn small accent" data-action="signin-check">I'm Signed In</button>${signIn.viaApp ? restart : ''}`;
+  if (s === 'noterm') return `<p>The office couldn't open Terminal. Open Terminal yourself and type <code>${esc(signIn.cmd)}</code>, then come back here.
+    <small>If this keeps happening, the office may be left over from an earlier Mac login.</small></p>
+    <button class="btn small accent" data-action="signin-check">I'm Signed In</button>${restart}`;
   if (s === 'checking') return `<p>Checking your sign-in…</p>`;
   if (s === 'stale') return `<p>Signed in, but the office can't see it yet. Restarting the office usually fixes this.
     <small>Not done in Terminal yet? Finish there first.</small></p>${restart}`;
@@ -1625,11 +1635,24 @@ function loadSignInStatus() {
   signInStatus = { loading: true };
   api('GET', '/api/login-status').then(r => { signInStatus = r; }).catch(() => { signInStatus = { failed: true }; }).finally(renderSignIn);
 }
+// An office left over from an earlier Mac login can't open Terminal (osascript fails). The app runs
+// in the current login, so it opens Terminal instead; in a browser, the boss gets the command to type.
 async function startSignIn() {
   signIn.state = 'opening';
+  signIn.viaApp = false;
   renderSignIn();
-  try { await api('POST', '/api/login'); signIn.state = 'opened'; }
-  catch (e) { signIn.state = signIn.ids.size ? 'needs' : null; }
+  let data = {}, ok = false;
+  try {
+    const res = await fetch('/api/login', { method: 'POST', headers: { 'X-Office-Token': TOKEN } });
+    data = await res.json().catch(() => ({}));
+    ok = res.ok;
+  } catch (e) {}
+  if (ok) signIn.state = 'opened';
+  else if (data.claude && inApp()) {
+    window.webkit.messageHandlers.office.postMessage({ kind: 'sign-in', claude: data.claude });
+    signIn.state = 'opened'; signIn.viaApp = true;
+  } else if (data.claude) { signIn.state = 'noterm'; signIn.cmd = `${data.claude} /login`; }
+  else { if (data.error) toast(data.error); signIn.state = signIn.ids.size ? 'needs' : null; }
   renderSignIn();
 }
 // Checked by the office itself. When signed in, the office gives stuck critters a fresh start.

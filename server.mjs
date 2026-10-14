@@ -1642,7 +1642,8 @@ const server = http.createServer(async (req, res) => {
       const q = String(url.searchParams.get('q') || '').trim();
       return send(res, 200, { results: q.length < 2 ? [] : searchChats(q.slice(0, 100)) });
     }
-    if (a === 'version' && !id && m === 'GET') return send(res, 200, await officeVersion());
+    // folder and startedAt let the Mac app spot an office from another copy, or from an earlier Mac login.
+    if (a === 'version' && !id && m === 'GET') return send(res, 200, { ...await officeVersion(), folder: DIR, startedAt: OFFICE_STARTED });
     if (a === 'version' && (id === 'check' || id === 'update') && m === 'POST') {
       const v = await officeVersion();
       if (!v.git || v.reason) return send(res, 400, { error: v.git ? "This copy isn't connected to GitHub, so there's nowhere to get updates from." : "This copy of the office wasn't downloaded with git, so it can't update itself." });
@@ -1680,7 +1681,7 @@ const server = http.createServer(async (req, res) => {
       const r = await openSignIn();
       if (!r.ok) console.error('Could not open Terminal for the sign-in:', r.err);
       return r.ok ? send(res, 200, { ok: true })
-        : send(res, 500, { error: `Couldn't open Terminal. Open it yourself and type: ${CLAUDE_BIN} /login` });
+        : send(res, 500, { error: `Couldn't open Terminal. Open it yourself and type: ${CLAUDE_BIN} /login`, claude: CLAUDE_BIN });
     }
     if (a === 'login-status' && m === 'GET') {
       const signedIn = await checkLogin();
