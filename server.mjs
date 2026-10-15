@@ -1,6 +1,7 @@
 // Burrow & Co. server: stores the office in office.json, runs one Claude Code
 // worker per cubicle through the Agent SDK, and streams everything to the page.
 import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -1364,11 +1365,18 @@ function notePreview(p, items) {
   }
   if (url && p.preview?.url !== url) { quietly(p, { preview: { url, at: Date.now() } }); setTimeout(() => checkPreview(p), 1500); }
 }
+// The address comes from chat text, so a bad one must never stop the office: http.get throws straight
+// away (not through 'error') on a protocol it can't handle. Local https servers use self-signed certificates.
 function checkPreview(p) {
   if (!p.preview?.url) return;
-  const r = http.get(p.preview.url, { timeout: 2000 }, res => { res.resume(); if (p.previewLive !== true) quietly(p, { previewLive: true }); });
-  r.on('timeout', () => r.destroy(new Error('timeout')));
-  r.on('error', () => { if (p.previewLive !== false) quietly(p, { previewLive: false }); });
+  const down = () => { if (p.previewLive !== false) quietly(p, { previewLive: false }); };
+  try {
+    const secure = /^https:/i.test(p.preview.url);
+    const r = (secure ? https : http).get(p.preview.url, { timeout: 2000, ...(secure ? { rejectUnauthorized: false } : {}) },
+      res => { res.resume(); if (p.previewLive !== true) quietly(p, { previewLive: true }); });
+    r.on('timeout', () => r.destroy(new Error('timeout')));
+    r.on('error', down);
+  } catch { down(); }
 }
 setInterval(() => { for (const p of office.projects) if (!p.closed && p.preview) checkPreview(p); }, 20000);
 
