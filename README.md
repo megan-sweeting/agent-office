@@ -4,7 +4,7 @@
 
 ## What you need
 
-- **A Mac.** The office uses macOS tools (`open`, the Claude desktop app links, the optional Mac app wrapper). It has only been used on Apple silicon Macs running macOS 13 or newer.
+- **A Mac, a Windows PC or a Linux computer.** The office was made on Apple silicon Macs running macOS 13 or newer. Windows and Linux run the browser-only version: the same office in your browser, without the Mac app. See [Windows and Linux](#windows-and-linux) for what's different.
 - **Node.js 18 or newer.** Check with `node --version`. If you don't have it, install it from https://nodejs.org (the LTS download) or with Homebrew: `brew install node`.
 - **Claude Code, installed and logged in.** The office runs the `claude` command on your Mac, so it must be on your `PATH`.
   - Install it: https://code.claude.com/docs/en/setup
@@ -57,6 +57,34 @@ cd app
 It installs to `~/Applications/Burrow & Co.app` and remembers which folder the office lives in. If that app was built from a different copy of the office, it asks before switching (`FORCE=1 ./build.sh` skips the question). To use your own bundle ID, run `BUNDLE_ID=com.yourname.agent-office ./build.sh`. It needs Xcode or the Xcode Command Line Tools (`xcode-select --install`), and it always opens http://localhost:4545, so keep the default port if you use it.
 
 Its menu bar has **Check for Updates…**, **Settings…** (⌘,) and **Restart the Office…** under Burrow & Co.; page shortcuts (⌘1 The Floor, ⌘2 Boss's Burrow, ⌘3 The Meadow, ⌘K Search) and text size (⌘+, ⌘−, ⌘0) under View; and help, the office tour, problem reports and the Ko-fi page under Help.
+
+## Windows and Linux
+
+The office runs the same way on Windows 10/11 and Linux: `npm install`, `npm start`, then open http://localhost:4545 in your browser. There is no app wrapper, so use the browser's own notifications (Settings → Alerts) for "May I?" pop-ups.
+
+**Before you start**
+
+- **Windows:** install Claude Code with the native installer so `claude.exe` is on your `PATH` (the npm `claude.cmd` can't be started by the office; if that's all you have, point to an exe with `CLAUDE_BIN`). Install [Git for Windows](https://git-scm.com/download/win): Claude Code runs commands through Git Bash.
+- **Linux:** install `bubblewrap` and `socat` (for example `sudo apt install bubblewrap socat`) so **Free inside the project folder** can use Claude Code's sandbox.
+
+**What's different**
+
+| | Mac | Windows | Linux |
+|---|---|---|---|
+| Free inside the project folder | Sandboxed: commands run without asking | No sandbox on Windows: file edits run without asking, every command asks | Sandboxed if `bubblewrap` and `socat` are installed; otherwise every command asks |
+| Sign In to Claude | Opens Terminal | Opens a new console window | Opens your terminal app (or shows the command to type) |
+| Open Folder, previews, pull requests | Finder and your browser | File Explorer and your browser | `xdg-open` |
+| Open in Claude Desktop | Yes | Yes (untested) | Hidden: there is no Claude desktop app for Linux |
+| Phone chat over Tailscale | Yes | Yes | Yes |
+
+**Guardrails on each system.** Critters never delete core system files or the whole disk or home folder, and always ask before anything below:
+
+- **Mac:** system folders (`/System`, `/Library`, `/usr`, `/Applications`…), the keychain, `sudo`, `launchctl`, `defaults write`, Homebrew installs.
+- **Windows:** `C:\Windows`, `Program Files`, `ProgramData`, the Startup folder and PowerShell profiles; Credential Manager and browser data; administrator commands (`runas`, `sudo`, `-Verb RunAs`), the registry (`reg add`, `Set-ItemProperty HKLM:`…), services, scheduled tasks, Defender and firewall settings, `Set-ExecutionPolicy`, disks; `winget`/`choco`/`scoop` installs; `irm … | iex`.
+- **Linux:** `/etc`, `/usr`, `/boot`, `/opt`, `/var/lib`, `/dev`…, autostart and systemd user folders; the keyring, `pass` and browser profiles; `sudo`/`pkexec`, `systemctl` changes, mounting and formatting disks, firewall, users and passwords, `gsettings`/`dconf`; `apt`/`dnf`/`pacman`/`snap`/`flatpak` installs.
+- **Everywhere:** passwords and keys (`~/.ssh`, `~/.aws`, `~/.gnupg`…), Claude's own settings, the office itself, files outside the project, deleting folders, `git push`, publishing packages, global installs and `curl … | sh`.
+
+The Windows and Linux versions haven't been tried on real machines yet. If something doesn't work, please open an issue.
 
 ## How it works
 

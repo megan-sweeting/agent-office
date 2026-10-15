@@ -10,6 +10,8 @@ import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { query, createSdkMcpServer, tool, getSessionMessages, listSessions } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
+import { OS, WORDS, GUARD, SHELL_TOOLS, SAFE_DEVICES, SANDBOX, SANDBOX_MISSING, TEMP_DIRS, DESKTOP_SESSIONS, PLAN_FILE,
+  within, fromShell, findClaude, findGh, findTailscale, openThing, openSignIn, pageInfo } from './system.mjs';
 
 const PORT = Number(process.env.OFFICE_PORT) || 4545;
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -18,7 +20,6 @@ const HOME = os.homedir();
 // Where new project folders go. The owner can change it in Settings.
 const DEFAULT_ROOT = '~/Claude/Projects';
 const projectsRoot = () => { const r = String(office.settings?.projectsRoot || DEFAULT_ROOT); return r.startsWith('~') ? path.join(HOME, r.slice(1)) : r; };
-const DESKTOP_SESSIONS = path.join(HOME, 'Library', 'Application Support', 'Claude', 'claude-code-sessions');
 // Page access key, kept across restarts so an open office window reconnects on its own.
 const TOKEN_FILE = path.join(DIR, '.office-token');
 let TOKEN;
@@ -93,13 +94,11 @@ const MODELS = ['', 'claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5', 
 const THEMES = ['system', 'light', 'dark'];
 const APPROVALS = ['default', 'acceptEdits', 'free', 'auto'];
 // Sites a sandboxed critter can reach without asking (package installs, code hosting, your own site).
-const UID = os.userInfo().uid;
-const TEMP_DIRS = [...new Set([os.tmpdir(), `/tmp/claude-${UID}`, `/private/tmp/claude-${UID}`])];
 // Each project's own Claude Code memory notes (outside the project folder, but only the critter's notes).
 const memoryDir = p => path.join(HOME, '.claude', 'projects', (p.folder || '').replace(/[^A-Za-z0-9]/g, '-'), 'memory');
-const inDir = (f, d) => typeof f === 'string' && (f === d || f.startsWith(d + '/'));
+const inDir = within;
 const loose = p => p?.permissionMode === 'free' || p?.permissionMode === 'auto';
-const inTemp = f => typeof f === 'string' && TEMP_DIRS.some(d => f === d || f.startsWith(d + '/'));
+const inTemp = f => TEMP_DIRS.some(d => within(f, d));
 const FREE_DOMAINS = ['registry.npmjs.org', '*.npmjs.org', 'github.com', '*.github.com', '*.githubusercontent.com',
   'pypi.org', 'files.pythonhosted.org', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 // Trusted Websites (Settings): extra sites critters on "Free in the project folder" may reach without asking.
@@ -131,8 +130,7 @@ if (process.env.CLAUDECODE || process.env.CLAUDE_CODE_DESKTOP_APP_VERSION) {
 }
 
 // Use the installed `claude` so workers share your normal login and settings.
-const CLAUDE_BIN = process.env.CLAUDE_BIN ||
-  (process.env.PATH || '').split(':').map(d => path.join(d, 'claude')).find(p => fs.existsSync(p));
+const CLAUDE_BIN = findClaude();
 
 /* ---------------- Office data ---------------- */
 let office = { projects: [], workers: [], whiteboard: '', settings: { theme: 'system' } };
@@ -261,7 +259,7 @@ function listFor(root) {
       const f = insideFor(root, path.relative(root, full));
       if (!f) continue;
       const st = fs.statSync(f);
-      out.push({ path: path.relative(root, full), size: st.size, modified: st.mtimeMs });
+      out.push({ path: path.relative(root, full).split(path.sep).join('/'), size: st.size, modified: st.mtimeMs });
     }
   };
   walk(root, 0);
@@ -377,37 +375,17 @@ function normalize(m, { live = false } = {}) {
 /* ---------------- Guardrails ---------------- */
 // Checked before every action, in every freedom level (Auto included). "deny" stops it cold;
 // "ask" sends it to the boss as a May I? card even when it would otherwise be approved.
-const SYSTEM_ZONES = ['/System', '/Library', '/usr', '/bin', '/sbin', '/etc', '/private/etc', '/private/var/db', '/Applications',
-  '/opt/homebrew', '/usr/local', `${HOME}/Library/Preferences`, `${HOME}/Library/LaunchAgents`, `${HOME}/Library/Application Support/Claude`,
-  `${HOME}/.claude/settings.json`, `${HOME}/.claude/settings.local.json`, `${HOME}/.claude.json`, `${HOME}/.claude/plugins`,
-  `${HOME}/.zshrc`, `${HOME}/.zprofile`, `${HOME}/.zshenv`, `${HOME}/.bash_profile`, `${HOME}/.bashrc`, `${HOME}/.profile`, `${HOME}/.gitconfig`,
-  DIR];  // the office itself: critters can't rewrite their own boss
-const SECRET_ZONES = [`${HOME}/.ssh`, `${HOME}/.gnupg`, `${HOME}/.aws`, `${HOME}/.config/gh`, `${HOME}/.netrc`, `${HOME}/.npmrc`,
-  `${HOME}/Library/Keychains`, `${HOME}/Library/Cookies`, `${HOME}/Library/Application Support/Google/Chrome`,
-  `${HOME}/Library/Application Support/Firefox`, `${HOME}/Library/Safari`, path.join(DIR, '.office-token')];
-const NEVER_RUN = [
-  [/\b(sudo|doas)\b|(^|[;&|]\s*)su\s/, 'admin (sudo) commands'],
-  [/\b(shutdown|reboot|halt|pmset|nvram|csrutil|spctl|kextload|kextunload|systemsetup|networksetup|dscl|tccutil|softwareupdate|diskutil|mdutil)\b/, 'Mac system settings and disks'],
-  [/\blaunchctl\s+(load|unload|bootstrap|bootout|enable|disable|remove|submit|kickstart)\b/, 'background services on the Mac'],
-  [/\bdefaults\s+(write|delete|import)\b/, 'Mac app preferences'],
-  [/\bcrontab\b/, 'scheduled system jobs'],
-  [/\bsecurity\s+(delete|add|set|import|export|dump|unlock|find-\w+-password\b.*\s-[wg]\b)/, 'the keychain (passwords)'],
-  [/\brm\s+(-\w+\s+)*(\/|~|\$HOME|\/Users\/[^\s/]+)\/?(\s|\*|$)/, 'deleting the whole disk or home folder'],
-  [/\b(chmod|chown)\s+-R\s+\S*\s*(\/|~|\$HOME)(\s|$)/, 'changing permissions on the whole disk or home folder'],
-  [/\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(ba|z|da)?sh\b/, 'running scripts straight from the internet'],
-];
-const ALWAYS_ASK = [
-  [/\bgit\s+push\b/, 'pushing code'],
-  [/\b(npm|pnpm|yarn)\s+publish\b/, 'publishing a package'],
-  [/\brm\s+(-\w*[rR]\w*)\b/, 'deleting folders'],
-  [/\bbrew\s+(install|uninstall|upgrade|reinstall)\b/, 'installing or removing Mac apps with Homebrew'],
-  [/\b(npm|pnpm)\s+(i|install|add)\s+(-g|--global)\b/, 'installing global tools'],
-];
+// Each system's own lists live in system.mjs (Mac, Windows and Linux).
+const SYSTEM_ZONES = [...GUARD.system, DIR];  // the office itself: critters can't rewrite their own boss
+const SECRET_ZONES = [...GUARD.secret, path.join(DIR, '.office-token')];
+const NEVER_RUN = GUARD.neverRun;
+const ALWAYS_ASK = GUARD.alwaysAsk;
 const guardLog = [];
-function underAny(f, zones) { return zones.some(z => f === z || f.startsWith(z.endsWith('/') ? z : z + '/')); }
+function underAny(f, zones) { return zones.some(z => within(f, z)); }
 function realish(f, cwd) {
   if (!f || typeof f !== 'string') return '';
   if (f.startsWith('~')) f = path.join(HOME, f.slice(1));
+  f = fromShell(f);
   if (!path.isAbsolute(f)) f = path.resolve(cwd || HOME, f);
   try { return fs.realpathSync.native(f); } catch {}
   try { return path.join(fs.realpathSync.native(path.dirname(f)), path.basename(f)); } catch { return path.normalize(f); }
@@ -417,30 +395,34 @@ const PLANS_DIR = path.join(HOME, '.claude', 'plans');
 function guard(p, toolName, input) {
   const i = input || {};
   const lane = [p.folder, ...TEMP_DIRS, memoryDir(p), PLANS_DIR].filter(Boolean).map(d => realish(d));
-  if (toolName === 'Bash') {
+  if (SHELL_TOOLS.includes(toolName)) {
     const cmd = String(i.command || '');
     for (const [re, what] of NEVER_RUN) {
       if (!re.test(cmd)) continue;
       if (what.startsWith('deleting the whole')) return ['deny', `Guardrail: critters never go near ${what}.`];
       return ['ask', `Guardrail: this touches ${what}. Check it before it runs.`];
     }
-    const expanded = cmd.replace(/~(?=\/|\s|$|["'])|\$HOME\b|\$\{HOME\}/g, HOME);
+    const expanded = cmd.replace(/~(?=[\\/]|\s|$|["'])|\$HOME\b|\$\{HOME\}|\$USERPROFILE\b|\$env:USERPROFILE\b|%USERPROFILE%/gi, HOME);
     // A path counts only when it starts a word ("/usr/lib", not ".venv/bin").
-    const mentions = z => new RegExp(`(^|[\\s"'=(:])${z.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[/\\s"';)&|])`).test(expanded);
+    // On Windows, C:\Users, C:/Users and /c/Users all count, in any case: compare them all with forward slashes.
+    const hay = OS === 'windows' ? expanded.replace(/\\/g, '/') : expanded;
+    const spellings = z => OS !== 'windows' ? [z] : [z.replace(/\\/g, '/'), z.replace(/^([a-zA-Z]):[\\/]?/, (_, d) => `/${d.toLowerCase()}/`).replace(/\\/g, '/')];
+    const esc = z => z.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const mentions = z => spellings(z).some(v => new RegExp(`(^|[\\s"'=(:])${esc(v)}(?=$|[/\\s"';)&|])`, OS === 'windows' ? 'i' : '').test(hay));
     if (SECRET_ZONES.some(mentions)) return ['ask', 'Guardrail: this touches passwords, keys or browser data. Check it before it runs.'];
     // Writing into a protected area: a redirect into it, or a file-changing command aimed at it.
-    const protectedPath = t => { const f = realish(t.replace(/^["']|["']$/g, ''), p.folder); return f.startsWith('/') && underAny(f, SYSTEM_ZONES) && !underAny(f, lane); };
+    const protectedPath = t => { const f = realish(t.replace(/^["']|["']$/g, ''), p.folder); return path.isAbsolute(f) && underAny(f, SYSTEM_ZONES) && !underAny(f, lane); };
     const redirects = [...expanded.matchAll(/(?:^|[^0-9&>])>>?\s*("[^"]+"|'[^']+'|[^\s;&|)]+)/g)].map(m => m[1]);
     const segments = expanded.split(/;|&&|\|\||\|/);
-    const writers = /^\s*(sudo\s+)?(cp|mv|rm|rmdir|tee|chmod|chown|chflags|ln|touch|mkdir|install|rsync|ditto|unzip|sed\s+-i|tar\s+-?[a-z]*x)\b/;
+    const writers = GUARD.writers;
     const argsOf = g => g.match(/("[^"]+"|'[^']+'|\S+)/g) || [];
-    const deleters = /^\s*(sudo\s+)?(rm|rmdir|unlink|srm|shred)\b/;
+    const deleters = GUARD.deleters;
     if (segments.filter(g => deleters.test(g)).flatMap(argsOf).some(protectedPath)) {
-      return ['deny', 'Guardrail: critters never delete core Mac system files.'];
+      return ['deny', `Guardrail: critters never delete core ${WORDS.system} system files.`];
     }
     const targets = segments.filter(g => writers.test(g)).flatMap(argsOf);
-    if ([...redirects, ...targets].some(t => t !== '/dev/null' && protectedPath(t))) {
-      return ['ask', 'Guardrail: this changes core Mac files, settings or the office itself. Check it before it runs.'];
+    if ([...redirects, ...targets].some(t => !SAFE_DEVICES.includes(t) && protectedPath(t))) {
+      return ['ask', `Guardrail: this changes core ${WORDS.system} files, settings or the office itself. Check it before it runs.`];
     }
     for (const [re, what] of ALWAYS_ASK) if (re.test(cmd)) return ['ask', `Guardrail: always ask the boss before ${what}.`];
     return null;
@@ -449,7 +431,7 @@ function guard(p, toolName, input) {
   if (!f) return null;
   if (underAny(f, SECRET_ZONES.map(z => realish(z)))) return ['ask', 'Guardrail: this touches passwords, keys or browser data. Check it before it runs.'];
   if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(toolName)) {
-    if (underAny(f, SYSTEM_ZONES.map(z => realish(z))) && !underAny(f, lane)) return ['ask', 'Guardrail: this changes core Mac files, settings or the office itself. Check it before it runs.'];
+    if (underAny(f, SYSTEM_ZONES.map(z => realish(z))) && !underAny(f, lane)) return ['ask', `Guardrail: this changes core ${WORDS.system} files, settings or the office itself. Check it before it runs.`];
     if (!underAny(f, lane)) return ['ask', 'Guardrail: changing files outside this project always asks the boss.'];
   }
   return null;
@@ -583,7 +565,7 @@ async function saveSeatWork(seat, message) {
   await git(seat.worktree, ['add', '-A']);
   const c = await git(seat.worktree, ['commit', '-m', message]);
   if (!c.ok) throw new Error(/user\.(name|email)|identity/i.test(c.err)
-    ? 'git needs your name and email before it can save work. In Terminal run: git config --global user.name "Your Name" and git config --global user.email "you@example.com"'
+    ? `git needs your name and email before it can save work. In ${WORDS.terminal} run: git config --global user.name "Your Name" and git config --global user.email "you@example.com"`
     : 'Could not save the desk mate\'s work: ' + firstLine(c.err));
 }
 const mainBranch = async seat => { const r = await git(seat.repo, ['symbolic-ref', '--short', 'HEAD']); return r.ok ? r.out : null; };
@@ -691,6 +673,7 @@ function officeTools(projectId) {
         need: z.string().describe('Plain English: the desktop-only thing you need, e.g. "the design canvas"'),
         plan: z.string().describe('Plain English: what you will do in the desktop app once the boss says go'),
       }, async ({ need, plan }) => {
+        if (!DESKTOP_SESSIONS) return text('There is no Claude desktop app on Linux, so the chat stays here. Tell the boss what you needed and suggest another way.');
         const p = find(projectId);
         const w = workers.get(projectId);
         if (!p?.sessionId || !w) return text('Could not hand off: this chat has no session yet.');
@@ -797,11 +780,12 @@ function officePrompt(p) {
     `- Call mcp__office__complete_todo when you finish one of the boss's to-dos. You can also keep the list tidy: ` +
     `add_todo for follow-up work, edit_todo to reword or sort, and remove_todo only for duplicates or things no longer needed (always say what you removed). ` +
     `Every to-do has an owner: critter (yours), boss (only the boss can do it, e.g. photos, phone checks, decisions), or together. Only work on critter and together ones.\n` +
-    `- If a task needs something only the Claude desktop app has (the design canvas / Claude Design, the browser pane, the iOS Simulator view), ` +
-    `do not say you can't: call mcp__office__open_in_desktop_app, and the chat moves there with you.\n` +
+    (DESKTOP_SESSIONS ? `- If a task needs something only the Claude desktop app has (the design canvas / Claude Design, the browser pane, the iOS Simulator view), ` +
+    `do not say you can't: call mcp__office__open_in_desktop_app, and the chat moves there with you.\n` : '') +
     `- The boss approves risky actions in a pop-up, so just attempt the action; do not ask for permission in chat first.\n` +
-    `- Guardrails: you never delete core Mac system files. Anything touching Mac system files or settings, passwords or keys, Burrow & Co. itself, ` +
-    `admin (sudo) commands, files outside this project, deleting folders, pushing code, or installing software goes to the boss for approval first.\n` +
+    `- This office runs on ${OS === 'mac' ? 'a Mac' : OS === 'windows' ? 'Windows' : 'Linux'}. Guardrails: you never delete core ${WORDS.system} system files. ` +
+    `Anything touching ${WORDS.system} system files or settings, passwords or keys, Burrow & Co. itself, ` +
+    `${WORDS.admin} commands, files outside this project, deleting folders, pushing code, or installing software goes to the boss for approval first.\n` +
     `- Anything you make for the boss to look at (previews, exports, screenshots, files to upload) goes in a folder named "${forFolder()}" ` +
     `inside this project's folder (create it if needed). Never put files on the Desktop or anywhere outside the project folder.\n` +
     `- When you build or change something the boss can see in a browser (a website, an app, a test copy), start a local preview server, ` +
@@ -838,6 +822,8 @@ function personalityPrompt(w) {
     `Use the personality only in chat replies to the boss: never in code, code comments, files you write, commit messages, cubicle task or note text, to-dos, or tool input.`;
 }
 
+// Without a sandbox, "free" still accepts file edits, but commands ask the boss.
+const sandboxed = p => p.permissionMode === 'free' && SANDBOX;
 const sdkMode = p => p.permissionMode === 'auto' ? 'auto' : p.permissionMode === 'acceptEdits' || p.permissionMode === 'free' ? 'acceptEdits' : 'default';
 function startWorker(p, { mode } = {}) {
   const queue = makeQueue();
@@ -862,7 +848,7 @@ function startWorker(p, { mode } = {}) {
       // "Free in the project folder": commands run inside Claude Code's sandbox, which only lets them
       // change files in this folder (and temp files). Those run without asking; anything that needs
       // to reach outside the sandbox still comes to the boss for approval.
-      sandbox: p.permissionMode === 'free' ? {
+      sandbox: sandboxed(p) ? {
         enabled: true,
         autoAllowBashIfSandboxed: true,
         allowUnsandboxedCommands: true,
@@ -988,7 +974,6 @@ setInterval(() => {
 // Claude's own rate-limit updates that arrive while critters work (these include reset times), and the
 // desktop app's usage samples (only every few hours). The newest reading wins.
 const planLimits = {}; // rateLimitType -> { pct, resetsAt, status, at }
-const PLAN_FILE = path.join(HOME, 'Library', 'Application Support', 'Claude', 'plan-usage-history.json');
 
 function notePlanLimit(info) {
   if (!info?.rateLimitType) return;
@@ -1164,7 +1149,8 @@ async function newCommits() {
   return { count, commits: list.out.split('\n').filter(Boolean).map(l => { const [id, message] = l.split(SEP); return { id, message }; }) };
 }
 // npm ci installs exactly what package-lock.json lists and never rewrites it, so updating leaves no local changes behind.
-const npmCi = () => new Promise(resolve => execFile('npm', ['ci', '--no-audit', '--no-fund'], { cwd: DIR, timeout: 300000, maxBuffer: 8 << 20 },
+// On Windows npm is npm.cmd, which only starts through the shell.
+const npmCi = () => new Promise(resolve => execFile(OS === 'windows' ? 'npm.cmd' : 'npm', ['ci', '--no-audit', '--no-fund'], { cwd: DIR, timeout: 300000, maxBuffer: 8 << 20, shell: OS === 'windows' },
   (err, out, errOut) => resolve({ ok: !err, err: String(errOut || err?.message || '').trim() })));
 
 let restartPending = false;
@@ -1284,13 +1270,6 @@ function freshStartWorkers(signedInAt) {
   return n;
 }
 
-function openSignIn() {
-  // Terminal starts its own clean shell, so none of the desktop app's variables can leak into the login.
-  const sh = `'${String(CLAUDE_BIN || 'claude').replace(/'/g, `'\\''`)}' /login`;
-  const script = `tell application "Terminal" to do script "${sh.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-  return new Promise(resolve => execFile('osascript', ['-e', 'tell application "Terminal" to activate', '-e', script], { timeout: 20000 },
-    (err, out, errOut) => resolve({ ok: !err, err: String(errOut || err?.message || '').trim() })));
-}
 
 // Photos and files from the boss: each one is saved into the project's "From <name>" folder (so the
 // critter can use the file itself). Photos are also sent along so the critter can see them, and so are
@@ -1394,7 +1373,7 @@ function checkPreview(p) {
 setInterval(() => { for (const p of office.projects) if (!p.closed && p.preview) checkPreview(p); }, 20000);
 
 /* ---------------- Save & publish (git) ---------------- */
-const GH = ['/opt/homebrew/bin/gh', '/usr/local/bin/gh', ...(process.env.PATH || '').split(':').map(d => path.join(d, 'gh'))].find(f => fs.existsSync(f));
+const GH = findGh();
 const gitNet = (cwd, args) => new Promise(resolve => execFile('git', ['-C', cwd, ...args],
   { timeout: 120000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, maxBuffer: 4 << 20 },
   (err, out, errOut) => resolve({ ok: !err, out: String(out || '').trim(), err: String(errOut || err?.message || '').trim() })));
@@ -1531,7 +1510,7 @@ function openInDesktop(sessionId) {
   const url = desktopRecordExists(sessionId)
     ? `claude://code/continue?session=local_${sessionId}`
     : `claude://resume?session=${sessionId}`;
-  execFile('open', [url]);
+  openThing(url);
 }
 
 function gitChanges(folder) {
@@ -1601,7 +1580,7 @@ const server = http.createServer(async (req, res) => {
         (m === 'POST' && a === 'permissions' && id) ||
         (m === 'POST' && a === 'projects' && id && ['message', 'stop', 'read'].includes(b)) ||
         (m === 'GET' && a === 'projects' && id && ['commands', 'files'].includes(b));
-      if (!allowed) return send(res, 403, { error: 'That only works from the office on your Mac.' });
+      if (!allowed) return send(res, 403, { error: `That only works from the office on your ${WORDS.computer}.` });
     }
 
     if (a === 'events') {
@@ -1609,7 +1588,7 @@ const server = http.createServer(async (req, res) => {
       res.write(`data: ${JSON.stringify({
         type: 'hello', office, busy: [...workers.entries()].filter(([, w]) => w.active).map(([k]) => k),
         build: String(fs.statSync(path.join(DIR, 'index.html')).mtimeMs),
-        permissions: [...pending.values()].map(x => x.req), guardLog: guardLog.slice(0, 30), moods: moodPics(), login: loginState(),
+        permissions: [...pending.values()].map(x => x.req), guardLog: guardLog.slice(0, 30), moods: moodPics(), login: loginState(), system: pageInfo(),
       })}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));
@@ -1666,7 +1645,7 @@ const server = http.createServer(async (req, res) => {
       const npm = files.some(f => f === 'package.json' || f === 'package-lock.json');
       if (npm) {
         const r = await npmCi();
-        if (!r.ok) return send(res, 500, { error: `The office updated, but installing its packages failed: ${firstLine(r.err)}. In Terminal, run npm ci in the office folder, then start the office again.` });
+        if (!r.ok) return send(res, 500, { error: `The office updated, but installing its packages failed: ${firstLine(r.err)}. In ${WORDS.terminal}, run npm ci in the office folder, then start the office again.` });
       }
       restartPending = true;
       setTimeout(restartWhenIdle, 200);
@@ -1677,11 +1656,11 @@ const server = http.createServer(async (req, res) => {
     }
     // Sign in to Claude: opens Terminal on this Mac running claude /login (never from a phone).
     if (a === 'login' && m === 'POST') {
-      if (!CLAUDE_BIN) return send(res, 500, { error: 'Could not find Claude Code on this Mac. Install it, then restart the office.' });
-      const r = await openSignIn();
-      if (!r.ok) console.error('Could not open Terminal for the sign-in:', r.err);
+      if (!CLAUDE_BIN) return send(res, 500, { error: `Could not find Claude Code on this ${WORDS.computer}. Install it, then restart the office.` });
+      const r = await openSignIn(CLAUDE_BIN);
+      if (!r.ok) console.error('Could not open a sign-in window:', r.err);
       return r.ok ? send(res, 200, { ok: true })
-        : send(res, 500, { error: `Couldn't open Terminal. Open it yourself and type: ${CLAUDE_BIN} /login`, claude: CLAUDE_BIN });
+        : send(res, 500, { error: `Couldn't open ${WORDS.terminal}. Open it yourself and type: ${CLAUDE_BIN} /login`, claude: CLAUDE_BIN });
     }
     if (a === 'login-status' && m === 'GET') {
       const signedIn = await checkLogin();
@@ -1709,7 +1688,8 @@ const server = http.createServer(async (req, res) => {
       if (f.setupDone === true) office.settings.setupDone = true;
       for (const k of ['tourDone', 'cubeTourDone']) if (typeof f[k] === 'boolean') office.settings[k] = f[k];
       if ('projectsRoot' in f) {
-        const r = String(f.projectsRoot || '').trim().replace(/\/+$/, '');
+        let r = String(f.projectsRoot || '').trim();
+        if (r.length > 3) r = r.replace(/[\\/]+$/, '');  // keep a bare drive like C:\
         const abs = r.startsWith('~') ? path.join(HOME, r.slice(1)) : r;
         if (r && !path.isAbsolute(abs)) return send(res, 400, { error: 'Type the full path, like ~/Projects.' });
         // The welcome screen makes the folder if it isn't there yet.
@@ -1763,6 +1743,7 @@ const server = http.createServer(async (req, res) => {
     if (a === 'open-desktop' && m === 'POST') {
       const { sessionId } = await body(req);
       if (!sessionId) return send(res, 400, { error: 'No chat to open.' });
+      if (!DESKTOP_SESSIONS) return send(res, 400, { error: 'There is no Claude desktop app on Linux.' });
       openInDesktop(sessionId);
       return send(res, 200, { ok: true });
     }
@@ -1926,13 +1907,13 @@ const server = http.createServer(async (req, res) => {
       if (b === 'practice-open' && m === 'POST') {
         const file = p.practice && p.folder && path.join(p.folder, 'index.html');
         if (!file || !fs.existsSync(file)) return send(res, 400, { error: `${workerName(p)} hasn't made the menu yet. Send the first message and approve the change.` });
-        execFile('open', [file]);
+        openThing(file);
         practiceTick(p, 'looked');
         return send(res, 200, { ok: true });
       }
       if (b === 'open-folder' && m === 'POST') {
         if (!p.folder || !isDir(p.folder)) return send(res, 400, { error: 'This cubicle has no project folder yet.' });
-        execFile('open', [p.folder]);
+        openThing(p.folder);
         return send(res, 200, { ok: true });
       }
       if (b === 'close' && m === 'POST') {
@@ -1959,6 +1940,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (b === 'open-desktop' && m === 'POST') {
         if (!p.sessionId) return send(res, 400, { error: 'This cubicle has no chat yet today.' });
+        if (!DESKTOP_SESSIONS) return send(res, 400, { error: 'There is no Claude desktop app on Linux.' });
         stopWorker(p.id);
         openInDesktop(p.sessionId);
         changed(p, { inDesktop: true, desktopDone: false, status: 'away', desktopSince: Date.now() });
@@ -2011,7 +1993,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (b === 'preview' && m === 'POST') {
         if (!p.preview?.url) return send(res, 400, { error: 'No preview yet.' });
-        execFile('open', [p.preview.url]);
+        openThing(p.preview.url);
         return send(res, 200, { ok: true });
       }
       if (b === 'save' && m === 'POST') {
@@ -2020,7 +2002,7 @@ const server = http.createServer(async (req, res) => {
         await git(p.folder, ['add', '-A']);
         const c = await git(p.folder, ['commit', '-m', msg]);
         if (!c.ok) return send(res, 400, { error: /nothing to commit/i.test(c.out + c.err) ? 'Nothing new to save.' : /user\.(name|email)|identity/i.test(c.err)
-          ? 'git needs your name and email first. In Terminal: git config --global user.name "Your Name" and git config --global user.email "you@example.com"' : firstLine(c.err || c.out) });
+          ? `git needs your name and email first. In ${WORDS.terminal}: git config --global user.name "Your Name" and git config --global user.email "you@example.com"` : firstLine(c.err || c.out) });
         return send(res, 200, { ok: true });
       }
       if (b === 'publish' && m === 'POST') {
@@ -2037,7 +2019,7 @@ const server = http.createServer(async (req, res) => {
         const r = await new Promise(resolve => execFile(GH, ['pr', 'create', '--fill', '--head', info.branch, '--base', info.defaultBranch], { cwd: p.folder, timeout: 60000 },
           (err, out, errOut) => resolve({ ok: !err, out: String(out || '').trim(), err: String(errOut || err?.message || '').trim() })));
         const url = (r.out + '\n' + r.err).match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
-        if (url) { execFile('open', [url]); return send(res, 200, { ok: true, url, existed: !r.ok }); }
+        if (url) { openThing(url); return send(res, 200, { ok: true, url, existed: !r.ok }); }
         if (/known GitHub host/i.test(r.err)) return send(res, 400, { error: `Saved and published ${info.branch}, but this project's copy online isn't on GitHub, so there's no pull request to open.` });
         return send(res, 400, { error: firstLine(r.err || r.out) });
       }
@@ -2089,7 +2071,7 @@ const server = http.createServer(async (req, res) => {
 // The one Tailscale account allowed in from other devices (tailscale serve adds this header).
 let TS_LOGIN = process.env.OFFICE_TAILSCALE_LOGIN || '';
 if (!TS_LOGIN) {
-  const tsBin = ['/usr/local/bin/tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'].find(f => fs.existsSync(f));
+  const tsBin = findTailscale();
   if (tsBin) execFile(tsBin, ['status', '--json'], { timeout: 5000 }, (err, out) => {
     try {
       const d = JSON.parse(out);

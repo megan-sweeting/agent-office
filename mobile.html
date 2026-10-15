@@ -185,9 +185,9 @@ const STATUS = {
 };
 let office = { projects: [], workers: [] }, busy = new Set(), perms = new Map();
 let openId = null, chat = null, connected = false, es = null, lastHeard = 0;
-// Critters stuck because Claude isn't signed in. Signing in opens Terminal, so it only works on the Mac.
-let needsLogin = new Set();
-const signInNote = p => `<div class="signin-note" role="status">Claude isn't signed in, so ${esc(workerOf(p).name)} can't work yet. Sign in on your Mac: open Burrow &amp; Co. there and click Sign In to Claude.</div>`;
+// Critters stuck because Claude isn't signed in. Signing in opens a window on the office's computer, so it only works there.
+let needsLogin = new Set(), sysName = 'Mac';
+const signInNote = p => `<div class="signin-note" role="status">Claude isn't signed in, so ${esc(workerOf(p).name)} can't work yet. Sign in on your ${sysName}: open Burrow &amp; Co. there and click Sign In to Claude.</div>`;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -403,7 +403,7 @@ function connect() {
   es.onmessage = e => {
     lastHeard = Date.now();
     const ev = JSON.parse(e.data);
-    if (ev.type === 'hello') { needsLogin = new Set(ev.login?.ids || []); office = ev.office; busy = new Set(ev.busy); perms = new Map(ev.permissions.map(r => [r.reqId, r])); if (openId && find(openId)) openChat(openId); else rerender(); }
+    if (ev.type === 'hello') { sysName = ev.system?.computer || sysName; needsLogin = new Set(ev.login?.ids || []); office = ev.office; busy = new Set(ev.busy); perms = new Map(ev.permissions.map(r => [r.reqId, r])); if (openId && find(openId)) openChat(openId); else rerender(); }
     else if (ev.type === 'project') {
       const i = office.projects.findIndex(p => p.id === ev.project.id);
       const prev = i >= 0 ? office.projects[i].sessionId : null;
@@ -451,7 +451,7 @@ async function send() {
   if ((!text && !drafts.length) || !p) return;
   if (/^\/login\s*$/i.test(text) && !drafts.length) {
     box.value = ''; grow(); needsLogin.add(p.id); renderThread(true);
-    return toast('Sign in on your Mac: open Burrow & Co. there and click Sign In to Claude.');
+    return toast(`Sign in on your ${sysName}: open Burrow & Co. there and click Sign In to Claude.`);
   }
   if (p.inDesktop && !p.desktopDone && !confirm(`${workerOf(p).name}'s chat is open in the Claude desktop app. Send from here instead?`)) return;
   box.value = ''; grow();

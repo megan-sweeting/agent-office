@@ -846,6 +846,9 @@ const MODELS = [
   ['claude-sonnet-5-5', 'Sonnet 5.5'],
   ['claude-haiku-4-5-20251001', 'Haiku 4.5'],
 ];
+// This computer (Mac, Windows or Linux): words and abilities, sent by the office in its hello.
+let SYS = { os: 'mac', computer: 'Mac', system: 'Mac', files: 'Finder', terminal: 'Terminal', termWindow: 'Terminal window',
+  keys: 'the keychain', adminLine: 'Admin (sudo) commands, shutting down, disks, background services', sandbox: true, sandboxMissing: '', desktop: true };
 const THEMES = [['system', 'Match my Mac'], ['light', 'Light'], ['dark', 'Dark']];
 const APPROVALS = [
   ['auto', 'Auto: Claude decides what\'s safe', 'Claude Code\'s built-in safety check approves everyday actions on its own and blocks risky ones instead of asking. The fewest approvals.'],
@@ -856,6 +859,15 @@ const APPROVALS = [
 // How hard the critter thinks: more effort is slower and uses more of your plan, but goes deeper.
 const EFFORTS = [['', 'Default'], ['low', 'Low (quick)'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max (deepest)']];
 const VOICES = [['plain', 'Plain'], ['light', 'A little critter'], ['full', 'Lots of critter']];
+const FREE_TEXT = APPROVALS[1][2];
+function applySystem(sys) {
+  SYS = { ...SYS, ...(sys || {}) };
+  THEMES[0][1] = `Match my ${SYS.computer}`;
+  APPROVALS[1][2] = SYS.sandbox ? FREE_TEXT.replace('your Mac', `your ${SYS.computer}`)
+    : `Edits files in this folder without asking. ${SYS.sandboxMissing} Anything that would change the rest of your ${SYS.computer} still asks you.`;
+  const k = $('#nav-search');
+  if (k) k.title = `Search all chats (${SYS.os === 'mac' ? '⌘K' : 'Ctrl+K'})`;
+}
 const approvalName = k => (APPROVALS.find(a => a[0] === (k || 'default')) || APPROVALS[2])[1].replace(' (recommended)', '');
 const darkMedia = matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
@@ -969,7 +981,7 @@ const titleCase = t => String(t || '').replace(/\b\w/g, c => c.toUpperCase());
 const animalOf = w => titleCase(w.animal);
 // Hide file-section references like "(§13)" on screen; the text itself keeps them.
 const showTodo = t => String(t || '').replace(/\s*\(§[\d.,\s§–-]+\)/g, '').trim();
-const folderName = f => String(f || '').split('/').filter(Boolean).pop() || '';
+const folderName = f => String(f || '').split(/[\\/]/).filter(Boolean).pop() || '';
 const hash = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7);
 const pickFrom = (list, seed) => list[Math.abs(hash(seed)) % list.length];
 function ago(t) {
@@ -983,7 +995,8 @@ function ago(t) {
   return d === 1 ? 'yesterday' : d + 'd ago';
 }
 const fmtDate = t => t ? new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-const shortPath = (f, folder) => folder && f?.startsWith(folder + '/') ? f.slice(folder.length + 1) : (f || '').replace(/^\/Users\/[^/]+/, '~');
+const shortPath = (f, folder) => folder && (f?.startsWith(folder + '/') || f?.startsWith(folder + '\\')) ? f.slice(folder.length + 1)
+  : (f || '').replace(/^\/(Users|home)\/[^/]+/, '~').replace(/^[A-Za-z]:\\Users\\[^\\]+/i, '~');
 const PLATES = { moss: 'Moss', berry: 'Berry', mustard: 'Mustard', trip: 'Teal', team: 'Periwinkle', sleep: 'Lavender', rose: 'Rose', sage: 'Sage' };
 const plateVars = p => { const c = PLATES[p.plate] ? p.plate : 'moss'; return `--plate:var(--plate-${c});--plate-on:var(--plate-${c}-on)`; };
 const statusVars = k => { const c = (STATUSES[k] || STATUSES.out).c; return `--c:var(--${c});--c-bg:var(--${c}-bg)`; };
@@ -1552,7 +1565,7 @@ function versionBodyHTML() {
   else if (s.error) result = `<p class="muted">${esc(s.error)}</p>`;
   else if ('updated' in s) result = s.updated ? `<p class="ver-done">Updated with ${s.updated} new version${s.updated === 1 ? '' : 's'}${s.npm ? ' and their packages' : ''}.</p>
       <p>The office restarts as soon as no critter is working${s.waiting ? ` (${s.waiting} still working)` : ''}, then this page reloads by itself.</p>
-      ${s.appChanged ? '<p><b>The Mac app changed too.</b> To rebuild it, open Terminal in the office\'s app folder and run <code>./build.sh</code>.</p>' : ''}`
+      ${s.appChanged && SYS.os === 'mac' ? '<p><b>The Mac app changed too.</b> To rebuild it, open Terminal in the office\'s app folder and run <code>./build.sh</code>.</p>' : ''}`
     : '<p class="ver-done">You\'re up to date.</p>';
   else if ('count' in s) result = s.count ? `<p><b>${s.count} new version${s.count === 1 ? '' : 's'} on GitHub:</b></p>
       <ul>${s.commits.map(x => `<li>${esc(x.message)}</li>`).join('')}</ul>${s.count > s.commits.length ? `<p class="muted">…and ${s.count - s.commits.length} more.</p>` : ''}`
@@ -1596,20 +1609,20 @@ function renderSignIn() {
 function signInFlowHTML(name) {
   const s = signIn.state;
   const restart = inApp() && !signIn.manualRestart ? '<button class="btn small accent" data-action="signin-restart">Restart the Office</button>'
-    : '<span>Quit Burrow &amp; Co. and open it again. If you started it from Terminal, press Control-C there and start it again.</span>';
+    : `<span>${inApp() ? 'Quit Burrow &amp; Co. and open it again.' : 'Close the office and start it again.'} If you started it from ${SYS.os === 'mac' ? 'Terminal' : 'a terminal'}, press Control-C there and start it again.</span>`;
   if (s === 'needs') return `<p>Claude isn't signed in${name ? `, so ${esc(name)} can't work yet` : ''}.</p><button class="btn small accent" data-action="signin">Sign In to Claude</button>`;
-  if (s === 'opening') return `<p>Opening Terminal…</p>`;
-  if (s === 'opened') return `<p>Finish signing in in the Terminal window (pick option 1 if you have a Claude subscription). Then come back here.</p>
+  if (s === 'opening') return `<p>Opening ${SYS.terminal}…</p>`;
+  if (s === 'opened') return `<p>Finish signing in in the ${SYS.termWindow} (pick option 1 if you have a Claude subscription). Then come back here.</p>
     ${signIn.viaApp ? `<p><small>The office couldn't open Terminal by itself, so the app did. If I'm Signed In doesn't work, restart the office.</small></p>` : ''}
     <button class="btn small accent" data-action="signin-check">I'm Signed In</button>${signIn.viaApp ? restart : ''}`;
-  if (s === 'noterm') return `<p>The office couldn't open Terminal. Open Terminal yourself and type <code>${esc(signIn.cmd)}</code>, then come back here.
-    <small>If this keeps happening, the office may be left over from an earlier Mac login.</small></p>
+  if (s === 'noterm') return `<p>The office couldn't open ${SYS.terminal}. Open ${SYS.terminal} yourself and type <code>${esc(signIn.cmd)}</code>, then come back here.
+    ${SYS.os === 'mac' ? '<small>If this keeps happening, the office may be left over from an earlier Mac login.</small>' : ''}</p>
     <button class="btn small accent" data-action="signin-check">I'm Signed In</button>${restart}`;
   if (s === 'checking') return `<p>Checking your sign-in…</p>`;
   if (s === 'stale') return `<p>Signed in, but the office can't see it yet. Restarting the office usually fixes this.
-    <small>Not done in Terminal yet? Finish there first.</small></p>${restart}`;
+    <small>Not done in the ${SYS.termWindow} yet? Finish there first.</small></p>${restart}`;
   if (s === 'restarting') return `<p>Restarting the office…</p>`;
-  if (s === 'still') return `<p>Still not signed in. Finish the steps in Terminal, then try again.</p>
+  if (s === 'still') return `<p>Still not signed in. Finish the steps in the ${SYS.termWindow}, then try again.</p>
     <button class="btn small" data-action="signin">Sign In to Claude</button><button class="btn small accent" data-action="signin-check">I'm Signed In</button>`;
   return '';
 }
@@ -1960,14 +1973,14 @@ function renderSettings() {
         <div class="guard-cols">
           <div><h4>Never, in any freedom level</h4>
             <ul>
-              <li>Delete core Mac system files</li>
+              <li>Delete core ${SYS.system} system files</li>
               <li>Delete the whole disk or home folder</li>
             </ul></div>
           <div><h4>Always ask you first</h4>
             <ul>
-              <li>Changing core Mac files, apps or system settings</li>
-              <li>Anything touching passwords, keys, the keychain or browser data</li>
-              <li>Admin (sudo) commands, shutting down, disks, background services</li>
+              <li>Changing core ${SYS.system} files, apps or system settings</li>
+              <li>Anything touching passwords, keys, ${SYS.keys} or browser data</li>
+              <li>${SYS.adminLine}</li>
               <li>Changing Burrow &amp; Co. itself or Claude's own settings</li>
               <li>Changing files outside their own project folder</li>
               <li>Deleting folders, pushing code, publishing, or installing software</li>
@@ -1987,7 +2000,7 @@ function alertsHTML() {
     <p>When a critter asks "May I?" and the office isn't in front, a Mac notification pops up with Allow and Not Now buttons.</p>
     <p class="muted">To change how they look or sound: System Settings › Notifications › Burrow &amp; Co.</p>
     <button class="btn small" data-action="test-alert">Send a Test Alert</button>`;
-  if (!('Notification' in window)) return '<p class="muted">This browser can\'t show alerts. Use the Burrow &amp; Co. Mac app for notifications.</p>';
+  if (!('Notification' in window)) return `<p class="muted">This browser can\'t show alerts. ${SYS.os === 'mac' ? 'Use the Burrow &amp; Co. Mac app for notifications.' : 'Try another browser for notifications.'}</p>`;
   if (Notification.permission === 'granted') return '<p>Alerts are on. This browser pops one up when a critter asks "May I?" and the office tab isn\'t in front.</p>';
   if (Notification.permission === 'denied') return '<p class="muted">This browser blocked alerts. Allow notifications for this page in the browser\'s site settings, then reload.</p>';
   return `<p>Get a pop-up when a critter asks "May I?" and the office tab isn't in front.</p>
@@ -2097,7 +2110,7 @@ function folderHTML(p) {
 /* ---------- Approvals ---------- */
 const waitingFor = id => [...perms.values()].filter(x => x.projectId === id);
 function askQuestion(r, p) {
-  const file = r.input?.file_path ? shortPath(r.input.file_path, p?.folder).split('/').pop() : '';
+  const file = r.input?.file_path ? shortPath(r.input.file_path, p?.folder).split(/[\\/]/).pop() : '';
   switch (r.toolName) {
     case 'Bash': return 'May I run a command?';
     case 'Edit': case 'MultiEdit': case 'NotebookEdit': return `May I edit ${file || 'a file'}?`;
@@ -2227,11 +2240,11 @@ function drawerHead(p) {
     </div>
     <div class="d-actions">
       ${p.closed ? `<button class="btn small primary" data-action="reopen" data-id="${p.id}">Reopen Project</button>` : `
-        ${p.sessionId ? `<button class="btn small" data-action="open-desktop" data-id="${p.id}" title="See this chat with the browser pane, diffs, artifacts and simulator">Open in Claude Desktop</button>` : ''}
+        ${p.sessionId && SYS.desktop ? `<button class="btn small" data-action="open-desktop" data-id="${p.id}" title="See this chat with the browser pane, diffs, artifacts and simulator">Open in Claude Desktop</button>` : ''}
         ${previewButton(p)}
         ${p.worktree ? `<button class="btn small accent" data-action="bring-back" data-id="${p.id}" title="Put ${esc(w.name)}'s saved work into the main project">Bring Work Back</button>` : ''}
         ${newDayButton(p)}
-        ${p.folder ? `<button class="btn small" data-action="open-folder" data-id="${p.id}" title="Show the project folder in Finder">Open Folder</button>` : ''}
+        ${p.folder ? `<button class="btn small" data-action="open-folder" data-id="${p.id}" title="Show the project folder in ${SYS.files}">Open Folder</button>` : ''}
         ${!mate && p.folder ? `<button class="btn small" data-action="add-deskmate" data-id="${p.id}" title="Another critter works on this project at the same time, in their own copy">Add a Desk Mate</button>` : ''}
         ${mate ? `<button class="btn small warn" data-action="send-home" data-id="${p.id}">Send Home</button>` : ''}`}
     </div>
@@ -2621,7 +2634,7 @@ function jobsHTML(p) {
   const w = workerOf(p), jobs = p.jobs || [];
   return `
     <h3>Recurring jobs</h3>
-    <p class="muted">Messages the office sends ${esc(w.name)} on a schedule. The office has to be running, and your Mac awake, at that time.</p>
+    <p class="muted">Messages the office sends ${esc(w.name)} on a schedule. The office has to be running, and your ${SYS.computer} awake, at that time.</p>
     ${jobs.length ? `<ul class="jobs">${jobs.map(j => `
       <li class="${j.on ? '' : 'off'}">
         <input type="checkbox" ${j.on ? 'checked' : ''} data-action="job-toggle" data-id="${p.id}" data-j="${j.id}" aria-label="Job on">
@@ -2702,7 +2715,7 @@ async function updateSlash() {
   menu.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
 }
 function closeSlash() { slash.open = false; const menu = $('#slashMenu'); if (menu) { menu.hidden = true; menu.innerHTML = ''; } }
-const SIGNIN_CMD = { name: 'login', description: 'Sign in to Claude. Opens Terminal on this Mac.', hint: '' };
+const SIGNIN_CMD = { name: 'login', get description() { return `Sign in to Claude. Opens ${SYS.terminal} on this ${SYS.computer}.`; }, hint: '' };
 function pickCommand(name) {
   const box = $('#msg');
   if (name === 'login') { box.value = ''; autosize(box); closeSlash(); signIn.ids.add(drawer.id); return startSignIn(); }
@@ -2752,7 +2765,7 @@ function pastHTML(p) {
       ${h.summary ? `<details class="day-summary"><summary>End-of-Shift Summary</summary><div class="bubble">${md(h.summary)}</div></details>` : ''}
       ${h.sessionId ? `<div class="h-actions">
         <button class="btn small" data-action="read-day" data-i="${i}">${pastChat?.index === i ? 'Hide chat' : 'Read chat'}</button>
-        <button class="btn small" data-action="open-desktop-past" data-s="${h.sessionId}">Open in Claude Desktop</button></div>` : ''}
+        ${SYS.desktop ? `<button class="btn small" data-action="open-desktop-past" data-s="${h.sessionId}">Open in Claude Desktop</button>` : ''}</div>` : ''}
       ${pastChat?.index === i ? `<div class="thread" style="margin-top:10px">${pastChat.loading ? '<div class="sys">Loading…</div>' : threadHTML(pastChat.items, p, false)}</div>` : ''}
     </li>`; }).join('')}</ul>`;
 }
@@ -2800,7 +2813,7 @@ function refreshDrawerFace() {
 function renderOffline() {
   $('#app').innerHTML = `<div class="offline">
     <h2>The office is closed</h2>
-    <p>Start it once, then leave that Terminal window open:</p>
+    <p>Start it once, then leave that ${SYS.os === 'mac' ? 'Terminal' : 'terminal'} window open:</p>
     <pre>cd "${esc(decodeURIComponent(location.pathname.replace(/\/index\.html$/, '')))}"\nnpm start</pre>
     <p>Then open <a href="http://localhost:4545">http://localhost:4545</a>.</p></div>`;
   document.querySelector('.topbar nav').hidden = true;
@@ -2844,6 +2857,7 @@ function connect() {
       if (pageBuild && ev.build && ev.build !== pageBuild) reloadWhenSafe();
       pageBuild ||= ev.build;
       office = ev.office;
+      applySystem(ev.system);
       guardLog = ev.guardLog || [];
       if (ev.moods) moods = new Set(ev.moods);
       applyTheme();
@@ -3321,13 +3335,13 @@ document.addEventListener('click', async e => {
     }
     case 'delete': {
       // Three checks: two confirms, then typing DELETE. The server checks the word too.
-      if (!confirm(`Delete ${p.name} for good?\n\nThe cubicle, its to-dos, ideas and day history are removed from the office. This can't be undone.\n\nThe project's folder and files stay on your Mac, and the chats stay in Claude Code.`)) return;
+      if (!confirm(`Delete ${p.name} for good?\n\nThe cubicle, its to-dos, ideas and day history are removed from the office. This can't be undone.\n\nThe project's folder and files stay on your ${SYS.computer}, and the chats stay in Claude Code.`)) return;
       if (!confirm(`Are you sure? ${p.name} can't be brought back after this.\n\nTip: Close Project keeps everything and lets you reopen it later.`)) return;
       const typed = prompt(`Last check: type DELETE in capitals to delete ${p.name} for good.`);
       if (typed === null) return;
       if (typed.trim() !== 'DELETE') return toast(`Not deleted: you typed "${typed.trim()}", not DELETE.`);
       try { await api('DELETE', `/api/projects/${p.id}`, { confirm: 'DELETE' }); } catch (e) { return; }
-      toast(`${p.name} was deleted. Its folder is still on your Mac.`);
+      toast(`${p.name} was deleted. Its folder is still on your ${SYS.computer}.`);
       return closeDrawer();
     }
     case 'check-usage': return checkUsage();
