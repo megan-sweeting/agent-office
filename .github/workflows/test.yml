@@ -1,0 +1,44 @@
+# Checks the office on real Mac, Windows and Linux computers (GitHub's free ones) each time code is pushed.
+# It starts the office and checks the guardrails; it doesn't sign in to Claude or chat with a critter.
+name: Office checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows, os: windows-latest }
+          - { name: Linux, os: ubuntu-latest }
+          - { name: Linux with the sandbox, os: ubuntu-latest, sandbox: true }
+          - { name: Mac, os: macos-latest }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install the sandbox tools
+        if: matrix.sandbox
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap socat
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+      - name: Guardrails on this system
+        run: node test/guard.test.mjs
+      - name: Guardrails for all three systems
+        run: node test/guard.test.mjs all
+      - name: The office starts
+        run: node test/smoke.mjs
+        env:
+          EXPECT_SANDBOX: ${{ matrix.sandbox && '1' || '' }}

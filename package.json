@@ -5,6 +5,7 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
+    "test": "node test/guard.test.mjs all && node test/smoke.mjs",
     "staging": "OFFICE_PORT=4547 OFFICE_DATA=\"$HOME/Claude/Agent Office staging data/office.json\" node --watch server.mjs"
   },
   "type": "commonjs",
