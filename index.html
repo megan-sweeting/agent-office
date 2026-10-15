@@ -127,7 +127,7 @@
   .topbar nav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .conn { font-size: 13px; color: var(--warn); font-weight: 700; }
 
-  main { max-width: 1320px; margin: 0 auto; padding: 26px 32px 120px; }
+  main { max-width: 1420px; margin: 0 auto; padding: 26px 32px 120px; }
   .banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 18px; margin-bottom: 18px; border: 2px solid var(--warn-line); border-radius: 18px; background: var(--warn-bg); color: var(--warn); }
   .banner p { margin: 0; flex: 1; min-width: 200px; font-weight: 700; }
 
@@ -164,7 +164,8 @@
   .chip { padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 14px; background: var(--c-bg); color: var(--c); }
 
   /* Cubicles */
-  .floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 22px; }
+  /* 320px keeps a card's footer (time, Open Preview, Clock Out) on one line; four still fit in a 1420px page. */
+  .floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 22px; }
   .cube {
     background: var(--card); border-radius: 26px 26px 18px 18px; border: 3px solid var(--wall); overflow: hidden;
     display: flex; flex-direction: column; cursor: pointer; transition: transform .12s ease; position: relative;
@@ -242,6 +243,7 @@
   .task { margin: 0; font-size: 15px; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .task em { color: var(--muted); }
   .cube footer { display: flex; align-items: center; gap: 8px; border-top: 2px dotted var(--line); padding-top: 10px; font-size: 13px; color: var(--muted); }
+  .cube footer .grow { white-space: nowrap; }
   .cube footer .grow { flex: 1; }
   .badge { background: var(--mustard-bg); border-radius: 8px; padding: 2px 8px; color: var(--mustard-ink); font-weight: 800; }
   .vacant {
