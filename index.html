@@ -1410,7 +1410,7 @@ const LONG_SHIFT = 150e3;
 function longShift(p) {
   const ctx = !p.closed && p.sessionId && usage?.projects.find(x => x.id === p.id)?.context;
   if (!ctx || ctx < LONG_SHIFT) return '';
-  return `<span class="pill long-shift" title="This chat is ${fmtTok(ctx)} tokens. Every message re-sends the whole chat, so each one costs more. Start a New Shift at a good stopping point.">Long Shift · ${fmtTok(ctx)}</span>`;
+  return `<span class="pill long-shift" title="This chat is ${fmtTok(ctx)} tokens. Every message re-sends the whole chat, so each one costs more. Clock Out at a good stopping point to start fresh.">Long Shift · ${fmtTok(ctx)}</span>`;
 }
 
 // Something the critter left running in the background, like a preview server. Just a note: the critter is free.
@@ -1432,7 +1432,7 @@ function previewButton(p) {
 function newDayButton(p) {
   return p.wrapping
     ? `<button class="btn small" data-action="new-day-now" data-id="${p.id}" title="Skip the wrap-up and start the new day now">Wrapping Up… Skip</button>`
-    : `<button class="btn small" data-action="new-day" data-id="${p.id}" title="Wrap up this shift, then start a fresh chat">New Shift</button>`;
+    : `<button class="btn small" data-action="new-day" data-id="${p.id}" title="Wrap up this shift, then start a fresh chat">Clock Out</button>`;
 }
 
 /* ---------- Meadow (hiring pool) ---------- */
@@ -1761,7 +1761,7 @@ const TOURS = {
     { at: '#dTabs [data-t="todos"]', title: 'To-Dos', text: n => `This project's to-do list. Each to-do says who it's for: ${n}, you, or both of you together. ${n} ticks theirs off when they're done.` },
     { at: '#dTabs [data-t="details"]', title: 'Details', text: n => `The project's folder, today's task, where ${n} left off, and how much freedom they have before they must ask you. Close Project lives here too, for when the work is finished.` },
     { at: '#dTabs [data-t="changes"]', title: 'Changes', text: n => `Every file ${n} changed. If the project uses git, you can save versions and publish to GitHub here. Don't like a change? Hover over your message in the chat and press Undo From Here. That works with or without git.` },
-    { at: '#drawer [data-action="new-day"]', title: 'New Shift', text: n => `Each chat is one shift. When a job is done, press New Shift: ${n} writes a summary and starts a fresh chat. Old chats live under Past Shifts. Long chats use more of your plan, so fresh shifts are cheaper.` },
+    { at: '#drawer [data-action="new-day"]', title: 'Clock Out', text: n => `Each chat is one shift. When a job is done, press Clock Out: ${n} writes a summary and starts a fresh chat. Old chats live under Past Shifts. Long chats use more of your plan, so fresh shifts are cheaper.` },
     { at: '#dTabs [data-t="log"]', title: 'Work Log', text: n => `The chat shows the conversation, including ${n}'s updates as they work. The Work Log shows the steps behind it: the files ${n} read, the commands they ran and what came back. Handy when something looks odd.` },
     { at: '#drawer [data-action="add-deskmate"]', title: 'Desk mates', text: n => `Need more hands? Add a Desk Mate and a second critter works on this project at the same time, with their own chat. If the project uses git they get their own copy, and Bring Work Back adds their work in.` },
   ] },
@@ -2265,7 +2265,7 @@ const PRACTICE_STEPS = [
   ['approved', 'Approve a change', n => `${n} will ask before saving the menu. Read the card in the chat, then press Allow.`],
   ['looked', 'See your menu', n => `When ${n} says it's done, press Open the Menu to see it in your browser.`],
   ['undo', 'Change it, then undo', n => `Ask ${n} to add a dessert. Once it's in, hover over that message and press Undo From Here under it to put the menu back. This works without git: the office keeps its own copy of each file before ${n} changes it.`],
-  ['shift', 'Start a New Shift', n => `Press New Shift at the top. ${n} writes a short summary of today and starts a fresh chat.`],
+  ['shift', 'Clock out', n => `Press Clock Out at the top. ${n} writes a short summary of today and starts a fresh chat.`],
   ['closed', 'Close the project', n => `Last one! Open Details and press Close Project. ${n} heads back to the Meadow.`],
 ];
 function practiceHTML(p) {
@@ -2757,7 +2757,7 @@ function changesHTML(p) {
 }
 
 function pastHTML(p) {
-  if (!p.history.length) return '<p class="muted">No finished shifts yet. Press New Shift to wrap up and start a fresh chat.</p>';
+  if (!p.history.length) return '<p class="muted">No finished shifts yet. Press Clock Out to wrap up and start a fresh chat.</p>';
   return `<ul class="history">${p.history.map((h, i) => {
     const hw = h.workerId && h.workerId !== p.workerId ? findWorker(h.workerId) : null;
     return `<li><div class="h-top"><b>Shift ${h.day}${hw ? ` · with ${esc(hw.name)}` : ''}</b><span>${fmtDate(h.date)} · ${STAGES[h.stage] || ''}</span></div>
@@ -3241,8 +3241,8 @@ document.addEventListener('click', async e => {
     case 'new-day': {
       const w = workerOf(p);
       const msg = p.sessionId
-        ? `Wrap up Shift ${p.day} and start Shift ${p.day + 1}?\n\n${w.name} will save their notes, put anything for you in the "${forFolder()}" folder, and send a short summary. Then a fresh chat starts.`
-        : `Start Shift ${p.day + 1} for ${w.name}?`;
+        ? `Clock ${w.name} out of Shift ${p.day}?\n\n${w.name} will save their notes, put anything for you in the "${forFolder()}" folder, and send a short summary. Then a fresh chat starts.`
+        : `Clock ${w.name} out and start Shift ${p.day + 1}?`;
       if (!confirm(msg)) return;
       const r = await api('POST', `/api/projects/${p.id}/new-day`, {});
       if (r.wrapping) { toast(`${w.name} is wrapping up Shift ${p.day}…`); return openDrawer(p.id, 'chat'); }

@@ -124,7 +124,7 @@ Every change is checked automatically on real Windows, Linux and Mac computers (
 - **Cubicle** = a project folder. Its critter is Claude Code running in that folder with your normal login and settings.
 - **The Meadow** is the hiring pool: 16 critters (art in `assets/critters/`). Click *Hire a critter* to open a new cubicle.
 - **Close Project** (in a cubicle's Details) files everything away and sends the critter back to the Meadow. Reopen it any time from *Closed projects* on the floor.
-- **New day** files today's chat under Past days. Your next message starts a fresh chat.
+- **Clock Out** files today's chat under Past Shifts. Your next message starts a fresh chat.
 - **Approvals** pop up bottom-right whenever a critter wants to edit files or run a command.
 - **Open in Claude Desktop** moves the chat into the Claude desktop app for the browser pane, diffs, artifacts and simulator. Only type in one place at a time. (See the warning below.)
 - **Critters update their own cubicle** (task, stage, status, notes) and can read and check off your to-dos from the Boss's Burrow.
