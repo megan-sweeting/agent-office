@@ -857,6 +857,7 @@ const APPROVALS = [
   ['free', 'Free inside the project folder (recommended)', 'Edits files and runs commands without asking, but only inside this folder. Anything that would change the rest of your Mac, or reach an unfamiliar website, still asks you.'],
   ['acceptEdits', 'Auto-approve file edits, ask before commands', 'Edits files in this folder without asking. Every command asks first.'],
   ['default', 'Ask me before everything', 'Asks before every file edit and every command. Reading files never asks.'],
+  ['bypass', 'Skip all approvals (dangerous)', 'Never asks before edits, commands, installs or websites. Only the guardrails still stop or ask. For throwaway projects with a backup. Turning it on takes two warnings.'],
 ];
 // How hard the critter thinks: more effort is slower and uses more of your plan, but goes deeper.
 const EFFORTS = [['', 'Default'], ['low', 'Low (quick)'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max (deepest)']];
@@ -1032,6 +1033,31 @@ function choose(title, text, buttons) {
     m.classList.add('open');
     setTimeout(() => m.querySelector('.btn.primary')?.focus(), 0);
   });
+}
+
+// Skipping all approvals sits behind two warnings. Resolves true only if the boss confirms both.
+async function confirmBypass(p) {
+  const n = workerOf(p).name;
+  const first = await choose(`Skip all approvals for ${n}?`,
+    `${n} will edit and delete files, run any command, install software and visit any website without asking you first. ` +
+    `A mistake, or instructions hidden in a web page or file, could wipe your work or send private files away, and no "May I?" will stop it.`,
+    [['no', 'Keep Approvals', 'primary'], ['next', 'I Understand the Risks', 'warn']]);
+  if (first !== 'next') return false;
+  const second = await choose('Last check: skip every approval?',
+    `This is the most dangerous setting in the office. Only the guardrails still apply: deleting core system files or the whole disk is blocked, ` +
+    `and passwords, system settings, pushing code and installing software still ask. Use it only on a throwaway project you have a backup of. ` +
+    `You can switch it off any time in ${n}'s Details.`,
+    [['no', 'Cancel', 'primary'], ['yes', 'Skip All Approvals', 'warn']]);
+  return second === 'yes';
+}
+// Freedom picked from Details or Settings. Returns false (and puts the picker back) if the boss backs out.
+async function setFreedom(p, mode) {
+  if (mode === 'bypass' && p.permissionMode !== 'bypass') {
+    if (!(await confirmBypass(p))) { render(); if (drawer.id) renderDrawer(false); return false; }
+    patch(p, { permissionMode: mode, bypassConfirmed: true });
+    delete p.bypassConfirmed;
+  } else patch(p, { permissionMode: mode });
+  return true;
 }
 
 // Chrome is switched on or off when a critter starts, so changing it restarts them. Ask first
@@ -1393,7 +1419,7 @@ function cubeHTML(p) {
       `<img class="mate-pic ${i ? 'right' : 'left'} ${busy.has(m.id) ? 'busy' : ''}" src="${critterSrc(workerOf(m), moodOf(m, askingCount(m.id)))}" alt="">`).join('')}<span class="say ${sayCls} ${['break', 'out', 'home'].includes(p.status) && !busy.has(p.id) && !asking ? 'thought' : ''}">${esc(say)}</span></div>
     <div class="desk"><span class="desk-name">${esc(w.name)}</span></div>
     <div class="info">
-      <div class="pills"><span class="pill" style="${statusVars(p.status)}">${s.label}</span>${longShift(p)}${runningChip(p)}</div>
+      <div class="pills"><span class="pill" style="${statusVars(p.status)}">${s.label}</span>${noApprovals(p)}${longShift(p)}${runningChip(p)}</div>
       <div class="stages">${STAGES.map((st, i) =>
         `<button class="dot ${i < p.stage ? 'on' : i === p.stage ? 'now' : ''}" title="Mark as ${st}" aria-label="Mark as ${st}" data-action="stage" data-id="${p.id}" data-i="${i}"></button>`).join('')}<span>${STAGES[p.stage]}</span></div>
       <p class="task">${p.task.trim() ? esc(p.task) : `<em>${p.folder ? 'No task set for today' : 'No project folder yet'}</em>`}</p>
@@ -1430,6 +1456,10 @@ function previewButton(p) {
     ? `<button class="btn small accent" data-action="preview" data-id="${p.id}" title="${esc(p.preview.url)}">Open Preview</button>`
     : `<button class="btn small" data-action="preview-start" data-id="${p.id}" title="The preview at ${esc(p.preview.url)} has stopped. Ask ${esc(workerOf(p).name)} to start it again.">Start Preview</button>`;
 }
+
+// A loud reminder on the card while a critter skips all approvals.
+const noApprovals = p => p.permissionMode === 'bypass'
+  ? `<span class="pill" style="${statusVars('blocked')}" title="${esc(workerOf(p).name)} skips all approvals. Change it in Details.">⚠ No Approvals</span>` : '';
 
 function newDayButton(p) {
   return p.wrapping
@@ -2237,7 +2267,7 @@ function drawerHead(p) {
       <div class="names"><b>${esc(p.name)}</b>
         <span>${esc(w.name)} the ${esc(animalOf(w))}${mate ? ` · Desk mate${p.shared ? ' (shared folder)' : ''}` : ''} · Shift ${p.day} · ${STAGES[p.stage]}${p.folder ? ` · <span class="path" title="${esc(p.folder)}">${esc(mate && p.branch ? p.branch : folderName(p.folder))}</span>` : ''}</span></div>
       ${p.closed ? '<span class="pill" style="--c:var(--off);--c-bg:var(--off-bg)">Closed</span>'
-        : `${runningChip(p)}${longShift(p)}<span class="pill" style="${statusVars(p.status)}">${busy.has(p.id) ? 'Working…' : s.label}</span>`}
+        : `${runningChip(p)}${longShift(p)}${noApprovals(p)}<span class="pill" style="${statusVars(p.status)}">${busy.has(p.id) ? 'Working…' : s.label}</span>`}
       <button class="x" data-action="close-drawer" aria-label="Close">✕</button>
     </div>
     <div class="d-actions">
@@ -3239,7 +3269,7 @@ document.addEventListener('click', async e => {
       api('PUT', '/api/settings', { theme: el.dataset.v }).catch(() => {});
       break;
     case 'status': patch(p, { status: el.dataset.s }); break;
-    case 'perm-mode': patch(p, { permissionMode: el.dataset.v }); return;
+    case 'perm-mode': return setFreedom(p, el.dataset.v);
     case 'new-day': {
       const w = workerOf(p);
       const msg = p.sessionId
@@ -3428,7 +3458,7 @@ document.addEventListener('change', e => {
     }
   } else if (el.dataset.freedom) {
     const fp = find(el.dataset.freedom);
-    if (fp) { patch(fp, { permissionMode: el.value }); toast(`${workerOf(fp).name}: ${approvalName(el.value)}.`); }
+    if (fp) setFreedom(fp, el.value).then(ok => ok && toast(`${workerOf(fp).name}: ${approvalName(el.value)}.`));
   } else if (el.dataset.effort) {
     const ep = find(el.dataset.effort);
     if (ep) { patch(ep, { effort: el.value }); toast(`${workerOf(ep).name}: ${EFFORTS.find(x => x[0] === el.value)[1]} effort.`); }

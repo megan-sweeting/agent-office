@@ -93,12 +93,14 @@ const PLATES = ['moss', 'berry', 'mustard'];
 // Models a critter can use; '' means the Claude Code default from your own settings.
 const MODELS = ['', 'claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5-20251001'];
 const THEMES = ['system', 'light', 'dark'];
-const APPROVALS = ['default', 'acceptEdits', 'free', 'auto'];
+// 'bypass' skips every approval (Claude Code's bypassPermissions). The page puts it behind two warnings,
+// and the office only accepts it with bypassConfirmed. The guardrails still apply.
+const APPROVALS = ['default', 'acceptEdits', 'free', 'auto', 'bypass'];
 // Sites a sandboxed critter can reach without asking (package installs, code hosting, your own site).
 // Each project's own Claude Code memory notes (outside the project folder, but only the critter's notes).
 const memoryDir = p => path.join(HOME, '.claude', 'projects', (p.folder || '').replace(/[^A-Za-z0-9]/g, '-'), 'memory');
 const inDir = within;
-const loose = p => p?.permissionMode === 'free' || p?.permissionMode === 'auto';
+const loose = p => ['free', 'auto', 'bypass'].includes(p?.permissionMode);
 const inTemp = f => TEMP_DIRS.some(d => within(f, d));
 const FREE_DOMAINS = ['registry.npmjs.org', '*.npmjs.org', 'github.com', '*.github.com', '*.githubusercontent.com',
   'pypi.org', 'files.pythonhosted.org', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -438,7 +440,7 @@ function guard(p, toolName, input) {
   return null;
 }
 function guardHook(projectId) {
-  return async input => {
+  return async (input, toolUseId, { signal } = {}) => {
     const p = find(projectId);
     if (!p || input.hook_event_name !== 'PreToolUse') return {};
     const hit = guard(p, input.tool_name, input.tool_input);
@@ -450,6 +452,12 @@ function guardHook(projectId) {
       guardLog.length = Math.min(guardLog.length, 100);
       broadcast({ type: 'chat', id: projectId, items: [{ kind: 'system', text: `Blocked by a guardrail: ${reason.replace('Guardrail: ', '')}` }] });
       broadcast({ type: 'guard', log: guardLog.slice(0, 30) });
+    }
+    // Skipping all approvals never skips the guardrails: ask the boss here, since no permission prompt follows.
+    if (decision === 'ask' && p.permissionMode === 'bypass') {
+      const r = await askBoss(projectId, input.tool_name, input.tool_input, { decisionReason: reason, signal });
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: r.behavior === 'allow' ? 'allow' : 'deny',
+        permissionDecisionReason: r.behavior === 'allow' ? 'The boss approved this.' : (r.message || 'The boss said no.') } };
     }
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: decision, permissionDecisionReason: reason } };
   };
@@ -534,7 +542,8 @@ const firstLine = t => String(t || '').split('\n').find(l => l.trim()) || 'git s
 
 async function addDeskMate(home, w) {
   const fields = { deskOf: home.id, workerId: w.id, name: home.name, plate: home.plate, stage: home.stage, status: 'out',
-    permissionMode: home.permissionMode, model: home.model, effort: home.effort, useChrome: home.useChrome, chromeFree: home.chromeFree };
+    permissionMode: home.permissionMode === 'bypass' ? 'acceptEdits' : home.permissionMode, model: home.model,  // skipping approvals is never inherited
+    effort: home.effort, useChrome: home.useChrome, chromeFree: home.chromeFree };
   const top = await git(home.folder, ['rev-parse', '--show-toplevel']);
   if (!top.ok) return newProject({ ...fields, folder: home.folder, shared: true });
   if (!(await git(home.folder, ['rev-parse', '--verify', 'HEAD'])).ok) {
@@ -825,7 +834,8 @@ function personalityPrompt(w) {
 
 // Without a sandbox, "free" still accepts file edits, but commands ask the boss.
 const sandboxed = p => p.permissionMode === 'free' && SANDBOX;
-const sdkMode = p => p.permissionMode === 'auto' ? 'auto' : p.permissionMode === 'acceptEdits' || p.permissionMode === 'free' ? 'acceptEdits' : 'default';
+const sdkMode = p => p.permissionMode === 'bypass' ? 'bypassPermissions' : p.permissionMode === 'auto' ? 'auto'
+  : p.permissionMode === 'acceptEdits' || p.permissionMode === 'free' ? 'acceptEdits' : 'default';
 function startWorker(p, { mode } = {}) {
   const queue = makeQueue();
   const w = { queue, active: false, workerSetStatus: false, q: null, startedAt: Date.now() };
@@ -842,6 +852,7 @@ function startWorker(p, { mode } = {}) {
       canUseTool: (name, input, opts) => askBoss(p.id, name, input, opts),
       hooks: { PreToolUse: [{ hooks: [guardHook(p.id)] }] },
       permissionMode: mode || sdkMode(p),
+      allowDangerouslySkipPermissions: p.permissionMode === 'bypass' || undefined,
       effort: p.effort || undefined,
       enableFileCheckpointing: true,   // so the boss can undo file changes
       additionalDirectories: loose(p) ? [...TEMP_DIRS, memoryDir(p)].filter(d => isDir(d)) : undefined,
@@ -1832,7 +1843,12 @@ const server = http.createServer(async (req, res) => {
         if ('jobs' in clean) { try { clean.jobs = cleanJobs(clean.jobs, p.jobs); } catch (e) { return send(res, 400, { error: e.message }); } }
         if ('scratch' in clean) clean.scratch = String(clean.scratch ?? '').slice(0, 50000);
         if ('permissionMode' in clean && !APPROVALS.includes(clean.permissionMode)) return send(res, 400, { error: 'Unknown approval setting.' });
-        const sandboxFlip = 'permissionMode' in clean && (clean.permissionMode === 'free') !== (p.permissionMode === 'free');
+        if (clean.permissionMode === 'bypass' && p.permissionMode !== 'bypass' && f.bypassConfirmed !== true) {
+          return send(res, 400, { error: 'Skipping all approvals needs both warnings confirmed first.' });
+        }
+        // The sandbox and bypass are both set when claude starts, so switching either restarts the critter.
+        const sandboxFlip = 'permissionMode' in clean && ((clean.permissionMode === 'free') !== (p.permissionMode === 'free') ||
+          (clean.permissionMode === 'bypass') !== (p.permissionMode === 'bypass'));
         const newFolder = 'folder' in clean && clean.folder !== p.folder;  // a new folder means a new chat anyway
         const chromeFlip = !newFolder && 'useChrome' in clean && !!clean.useChrome !== !!p.useChrome;
         if (newFolder) clean.sessionId = null;
@@ -1842,9 +1858,10 @@ const server = http.createServer(async (req, res) => {
         else if (chromeFlip) return send(res, 200, { project: p, ...restartForChrome(p, f.when) });
         else if (sandboxFlip) {
           const w = workers.get(p.id);
+          // Leaving "skip all approvals" takes hold at once; the fresh start then follows after the step.
+          if (w && p.permissionMode !== 'bypass') w.q.setPermissionMode(sdkMode(p)).catch(() => {});
           if (w && w.active) w.restartAfterTurn = true; else stopWorker(p.id);
-        } else if ('permissionMode' in clean) workers.get(p.id)?.q.setPermissionMode(
-          clean.permissionMode === 'auto' ? 'auto' : clean.permissionMode === 'default' ? 'default' : 'acceptEdits').catch(() => {});
+        } else if ('permissionMode' in clean) workers.get(p.id)?.q.setPermissionMode(sdkMode(p)).catch(() => {});
         if ('model' in clean) workers.get(p.id)?.q.setModel(clean.model || undefined).catch(() => {});
         if ('effort' in clean) workers.get(p.id)?.q.applyFlagSettings({ effortLevel: clean.effort || null }).catch(() => {});
         return send(res, 200, { project: p });
