@@ -1556,7 +1556,7 @@ function versionBodyHTML() {
   if (!ver || ver.loading) return '<p class="muted">Looking up this version…</p>';
   if (ver.failed) return "<p class=\"muted\">Couldn't look up the version right now.</p>";
   if (!ver.git) return `<p>This copy of the office wasn't downloaded with git, so it can't update itself.</p>
-    <p class="muted">To get the latest version, download it again from <a href="https://github.com/megan-sweeting/agent-office" target="_blank" rel="noopener">GitHub</a>.</p>`;
+    <p class="muted">To get the latest version, download it again from <a href="https://github.com/megan-sweeting/burrow-and-co" target="_blank" rel="noopener">GitHub</a>.</p>`;
   const c = ver.commit, now = c ? `<p class="ver-now"><code>${esc(c.id)}</code> · ${new Date(c.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} · ${esc(c.message)}</p>` : '';
   if (ver.reason === 'no-remote') return `${now}<p class="muted">This copy isn't connected to GitHub, so there's nowhere to get updates from.</p>`;
   const s = verState || {};

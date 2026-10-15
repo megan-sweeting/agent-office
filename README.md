@@ -2,24 +2,34 @@
 
 *(Formerly Agent Office.)* A visual office for your Claude Code workers. One cubicle per project, one critter per cubicle, one chat per "day".
 
+![The Floor: four critters at their cubicles, one asking a question, one napping, one on a snack break](docs/floor.jpg)
+
+> **Early days.** Burrow & Co. is one person's project, made and used every day on a Mac. Windows and Linux pass automatic checks on real Windows and Linux computers, but no person has tried them yet. If something goes wrong, please [open an issue](https://github.com/megan-sweeting/burrow-and-co/issues/new).
+
 ## What you need
 
 - **A Mac, a Windows PC or a Linux computer.** The office was made on Apple silicon Macs running macOS 13 or newer. Windows and Linux run the browser-only version: the same office in your browser, without the Mac app. See [Windows and Linux](#windows-and-linux) for what's different.
 - **Node.js 18 or newer.** Check with `node --version`. If you don't have it, install it from https://nodejs.org (the LTS download) or with Homebrew: `brew install node`.
-- **Claude Code, installed and logged in.** The office runs the `claude` command on your Mac, so it must be on your `PATH`.
+- **Claude Code, installed and logged in.** The office runs the `claude` command on your computer, so it must be on your `PATH`.
   - Install it: https://code.claude.com/docs/en/setup
-  - Log in once in Terminal: run `claude`, follow the login steps, then quit it.
+  - Log in once in a terminal (Terminal on a Mac): run `claude`, follow the login steps, then quit it.
   - **You need a paid plan** (Claude Pro or Max, or an Anthropic Console account with API billing). The office uses your normal Claude Code login and settings, so every critter's work counts against your plan's usage, the same as using Claude Code yourself.
-  - **Prefer an API key?** Anthropic's Agent SDK terms expect apps built on it to use API keys, so this is the fully supported option. Create a key at https://console.anthropic.com, then start the office with it: `ANTHROPIC_API_KEY=your-key npm start`. Critters then bill to your Console account instead of your plan.
+  - **Prefer an API key?** Anthropic's Agent SDK terms expect apps built on it to use API keys, so this is the fully supported option. Create a key at https://console.anthropic.com, then start the office with it: `ANTHROPIC_API_KEY=your-key npm start` (in Windows PowerShell: `$env:ANTHROPIC_API_KEY="your-key"; npm start`). Critters then bill to your Console account instead of your plan.
 - **Optional:** `git` for the Changes tab and Save & Publish, the GitHub CLI (`gh`) for pull requests, and [Tailscale](https://tailscale.com) for the phone chat page.
 
 ## Install
 
-1. Download or clone this folder anywhere you like, for example `~/Claude/Projects/Agent Office`.
-2. In Terminal, go into the folder and install its packages:
+1. Download or clone this folder anywhere you like, for example into `~/Claude/Projects`:
 
    ```bash
-   cd ~/Claude/Projects/"Agent Office"
+   cd ~/Claude/Projects
+   git clone https://github.com/megan-sweeting/burrow-and-co.git
+   ```
+
+2. In a terminal, go into the folder and install its packages:
+
+   ```bash
+   cd burrow-and-co
    npm install
    ```
 
@@ -43,7 +53,7 @@ If the Terminal says it **could not find the claude command**, Claude Code isn't
 | `CLAUDE_BIN` | Where the `claude` command is | found on your `PATH` |
 | `OFFICE_TAILSCALE_LOGIN` | The one Tailscale login allowed to use the phone chat page | your own Tailscale login, if Tailscale is installed |
 
-For example: `OFFICE_PORT=4600 npm start`.
+For example: `OFFICE_PORT=4600 npm start` (in Windows PowerShell: `$env:OFFICE_PORT=4600; npm start`).
 
 ### Optional: the Mac app
 
@@ -84,7 +94,7 @@ The office runs the same way on Windows 10/11 and Linux: `npm install`, `npm sta
 - **Linux:** `/etc`, `/usr`, `/boot`, `/opt`, `/var/lib`, `/dev`…, autostart and systemd user folders; the keyring, `pass` and browser profiles; `sudo`/`pkexec`, `systemctl` changes, mounting and formatting disks, firewall, users and passwords, `gsettings`/`dconf`; `apt`/`dnf`/`pacman`/`snap`/`flatpak` installs.
 - **Everywhere:** passwords and keys (`~/.ssh`, `~/.aws`, `~/.gnupg`…), Claude's own settings, the office itself, files outside the project, deleting folders, `git push`, publishing packages, global installs and `curl … | sh`.
 
-The Windows and Linux versions haven't been tried on real machines yet. If something doesn't work, please open an issue.
+Every change is checked automatically on real Windows, Linux and Mac computers (the guardrails, and that the office starts), but no person has used the Windows or Linux versions yet. If something doesn't work, please [open an issue](https://github.com/megan-sweeting/burrow-and-co/issues/new).
 
 ## How it works
 

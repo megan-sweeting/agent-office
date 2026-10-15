@@ -460,8 +460,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     @objc func showPage(_ sender: NSMenuItem) { page(["", "floor", "boss", "meadow", "search"][sender.tag]) }
 
     @objc func openLink(_ sender: NSMenuItem) {
-        let links = ["", "https://github.com/megan-sweeting/agent-office#readme",
-                     "https://github.com/megan-sweeting/agent-office/issues/new",
+        let links = ["", "https://github.com/megan-sweeting/burrow-and-co#readme",
+                     "https://github.com/megan-sweeting/burrow-and-co/issues/new",
                      "https://ko-fi.com/megansweeting"]
         if let url = URL(string: links[sender.tag]) { NSWorkspace.shared.open(url) }
     }
