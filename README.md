@@ -15,7 +15,7 @@
   - Log in once in a terminal (Terminal on a Mac): run `claude`, follow the login steps, then quit it.
   - **You need a paid plan** (Claude Pro or Max, or an Anthropic Console account with API billing). The office uses your normal Claude Code login and settings, so every critter's work counts against your plan's usage, the same as using Claude Code yourself.
   - **Prefer an API key?** Anthropic's Agent SDK terms expect apps built on it to use API keys, so this is the fully supported option. Create a key at https://console.anthropic.com, then start the office with it: `ANTHROPIC_API_KEY=your-key npm start` (in Windows PowerShell: `$env:ANTHROPIC_API_KEY="your-key"; npm start`). Critters then bill to your Console account instead of your plan.
-- **Optional:** `git` for the Changes tab and Save & Publish, the GitHub CLI (`gh`) for pull requests, and [Tailscale](https://tailscale.com) for the phone chat page.
+- **Optional:** `git` for the Changes tab and Save & Publish, the GitHub CLI (`gh`) for pull requests, and [Tailscale](https://tailscale.com/download) for the phone chat page (see [Chat from your phone](#optional-chat-from-your-phone-with-tailscale)).
 
 ## Install
 
@@ -68,6 +68,29 @@ It installs to `~/Applications/Burrow & Co.app` and remembers which folder the o
 
 Its menu bar has **Check for Updates…**, **Settings…** (⌘,) and **Restart the Office…** under Burrow & Co.; page shortcuts (⌘1 The Floor, ⌘2 Boss's Burrow, ⌘3 The Meadow, ⌘K Search) and text size (⌘+, ⌘−, ⌘0) under View; and help, the office tour, problem reports and the Ko-fi page under Help.
 
+## Optional: chat from your phone with Tailscale
+
+The office has a small chat page for your phone, so you can answer critters and approve their "May I?" requests from the sofa. It works through **Tailscale**, a free app that links your own devices into a private network. Nothing goes on the open internet, and only your own Tailscale login is let in.
+
+1. **Download Tailscale** from https://tailscale.com/download and install it on the computer that runs the office and on your phone (iPhone or Android). The free Personal plan is enough.
+2. **Sign in to the same Tailscale account** on both.
+3. **Turn on HTTPS** for your Tailscale network: open https://login.tailscale.com/admin/dns, make sure **MagicDNS** is on, then turn on **HTTPS Certificates**. (If you skip this, step 5 shows a link to do it.)
+4. **Start the office after Tailscale is signed in**, or restart it if it was already running. The office checks who you are when it starts, and the terminal shows `Tailscale: open to you@example.com from their other devices.`
+5. **Share the office with your devices.** In a terminal, run:
+
+   ```bash
+   tailscale serve --bg 4545
+   ```
+
+   It prints an address like `https://your-computer.your-tailnet.ts.net`. On Linux you may need `sudo tailscale serve --bg 4545`, or run `sudo tailscale set --operator=$USER` once first.
+6. **Open that address on your phone**, then add it to your home screen so it opens like an app.
+
+To stop sharing, run `tailscale serve reset`.
+
+> **Never use `tailscale funnel` for the office.** Funnel puts it on the public internet. `tailscale serve` keeps it inside your own private network.
+
+Signing in to Claude and changing settings only work on the computer that runs the office, not from the phone. To let a different Tailscale login in, start the office with `OFFICE_TAILSCALE_LOGIN=their-login npm start`.
+
 ## Windows and Linux
 
 The office runs the same way on Windows 10/11 and Linux: `npm install`, `npm start`, then open http://localhost:4545 in your browser. There is no app wrapper, so use the browser's own notifications (Settings → Alerts) for "May I?" pop-ups.
@@ -113,7 +136,7 @@ Everything the office knows is saved in `office.json` next to this file. It hold
 > **⚠ The Claude desktop links are undocumented.** *Open in Claude Desktop* works by opening `claude://resume?session=…` (or `claude://code/continue?session=…`) links, and by reading the desktop app's session files. Anthropic hasn't documented or promised any of this. It works today, but an update to the Claude desktop app could break it without warning. If it stops working, everything else in the office still works; just keep chatting in the office.
 
 - **Your usage.** Each critter is a real Claude Code session on your plan. Several busy critters use your plan's limits faster. Settings → Critters lets you pick the model and effort level.
-- **It only listens on your Mac.** The office answers on `127.0.0.1` only. The phone chat page works through `tailscale serve`, and only for your own Tailscale login.
+- **It only listens on your computer.** The office answers on `127.0.0.1` only. The phone chat page works through `tailscale serve`, and only for your own Tailscale login.
 - **Approvals matter.** Critters can edit files and run commands in their project folders. Read the approval pop-ups before you click Allow.
 - **When Claude's login runs out**, critters say "Not logged in". A banner in their chat has a **Sign In to Claude** button: it opens Terminal running `claude /login` (the first time, macOS asks whether the office may control Terminal). Finish there, press **I'm Signed In**, then **Try Again**. If the office still can't see the sign-in, **Restart the Office** in the Mac app usually fixes it. Typing `/login` in a chat starts the same steps.
 
